@@ -1,6 +1,3 @@
-## 🔹 README.md
-
-````markdown
 # Qognus Demo Platform  
 *A fully synthetic, production-style environment for applied AI/ML demos*
 
