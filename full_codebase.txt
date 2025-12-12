@@ -87,6 +87,8 @@ target/
 profile_default/
 ipython_config.py
 
+full_codebase.txt
+
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
@@ -3086,35 +3088,33 @@ Qognus Demo Platform — ApexGrid Systems
 ---------------------------------------
 
 Takes precomputed embeddings for synthetic ApexGrid support tickets and:
-
 1. Loads ticket metadata + embeddings
 2. Computes a 3D manifold projection using UMAP
 3. Runs HDBSCAN clustering on the 3D manifold
 4. Generates lightweight cluster summaries
-5. Saves:
-   - manifold_3d.npy
-   - cluster_labels.npy
-   - cluster_summary.json
+5. Saves artifacts for the web UI.
 
-This script is designed to match the pipeline defined in:
-- docs/ml_pipeline_design.md
-- docs/architecture.md
+NOTE: The first run may take 1-3 minutes to compile Numba functions.
 """
 
 import json
 import pathlib
+import time
 from collections import Counter
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
+# Print immediately so user knows script is alive
+print("Importing libraries... (This may pause for Numba compilation)")
 import umap
 import hdbscan
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 # ------------------------------------------------------------
-# CONFIGURATION
+# CONFIG
 # ------------------------------------------------------------
 
 DATA_DIR = pathlib.Path("data")
@@ -3127,14 +3127,14 @@ OUT_MANIFOLD = PROCESSED_DIR / "manifold_3d.npy"
 OUT_LABELS = PROCESSED_DIR / "cluster_labels.npy"
 OUT_CLUSTER_SUMMARY = PROCESSED_DIR / "cluster_summary.json"
 
-# UMAP parameters — tweak for aesthetics vs. structure
+# UMAP parameters
 UMAP_N_COMPONENTS = 3
 UMAP_N_NEIGHBORS = 30
 UMAP_MIN_DIST = 0.1
 UMAP_METRIC = "cosine"
 UMAP_RANDOM_STATE = 42
 
-# HDBSCAN parameters — tweak for cluster granularity
+# HDBSCAN parameters
 HDBSCAN_MIN_CLUSTER_SIZE = 30
 HDBSCAN_MIN_SAMPLES = 10
 HDBSCAN_METRIC = "euclidean"
@@ -3148,40 +3148,44 @@ HDBSCAN_SELECTION_EPS = 0.05
 def load_data():
     """Load tickets DataFrame and embeddings matrix."""
     if not TICKETS_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first."
-        )
+        raise FileNotFoundError(f"Missing {TICKETS_PARQUET}")
     if not EMBED_NPY.exists():
-        raise FileNotFoundError(
-            f"Missing {EMBED_NPY}. Run compute_embeddings.py first."
-        )
+        raise FileNotFoundError(f"Missing {EMBED_NPY}")
 
-    print(f"Loading tickets from: {TICKETS_PARQUET}")
+    print(f"Loading data...")
     df = pd.read_parquet(TICKETS_PARQUET)
-
-    print(f"Loading embeddings from: {EMBED_NPY}")
     embeddings = np.load(EMBED_NPY)
-
+    
+    # Validation
     if len(df) != embeddings.shape[0]:
-        raise ValueError(
-            f"Row count mismatch: tickets={len(df)} vs embeddings={embeddings.shape[0]}"
-        )
-
+        raise ValueError(f"Mismatch: {len(df)} tickets vs {embeddings.shape[0]} embeddings")
+    
+    print(f" -> Loaded {len(df)} records.")
     return df, embeddings
 
 
 def compute_umap_3d(embeddings: np.ndarray) -> np.ndarray:
     """Compute a 3D UMAP projection."""
-    print("Computing UMAP 3D projection...")
+    print("\n--- UMAP PROJECTION ---")
+    print("Initializing UMAP reducer...")
+    
     reducer = umap.UMAP(
         n_components=UMAP_N_COMPONENTS,
         n_neighbors=UMAP_N_NEIGHBORS,
         min_dist=UMAP_MIN_DIST,
         metric=UMAP_METRIC,
         random_state=UMAP_RANDOM_STATE,
+        verbose=True # Shows internal UMAP progress
     )
+    
+    print("Fitting UMAP (First run may take 1-3 mins to compile Numba)...")
+    start_time = time.time()
+    
+    # The fit_transform is the heavy blocking call
     coords_3d = reducer.fit_transform(embeddings)
-    print("UMAP completed.")
+    
+    duration = time.time() - start_time
+    print(f"UMAP completed in {duration:.1f} seconds.")
 
     # Normalize to a reasonable cube for WebGL (approx [-3, 3]^3)
     max_abs = max(abs(coords_3d).max(), 1e-6)
@@ -3192,7 +3196,9 @@ def compute_umap_3d(embeddings: np.ndarray) -> np.ndarray:
 
 def run_hdbscan(coords_3d: np.ndarray) -> np.ndarray:
     """Run HDBSCAN clustering on 3D coordinates."""
-    print("Running HDBSCAN clustering...")
+    print("\n--- HDBSCAN CLUSTERING ---")
+    print("Clustering 3D points...")
+    
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
         min_samples=HDBSCAN_MIN_SAMPLES,
@@ -3204,8 +3210,8 @@ def run_hdbscan(coords_3d: np.ndarray) -> np.ndarray:
     num_clusters = len(set(labels)) - (1 if -1 in labels else 0)
     noise_fraction = float((labels == -1).sum()) / len(labels)
 
-    print(f"HDBSCAN found {num_clusters} clusters.")
-    print(f"Noise fraction: {noise_fraction:.3f}")
+    print(f" -> Found {num_clusters} clusters.")
+    print(f" -> Noise fraction: {noise_fraction:.1%}")
 
     return labels
 
@@ -3213,19 +3219,19 @@ def run_hdbscan(coords_3d: np.ndarray) -> np.ndarray:
 def summarize_clusters(df: pd.DataFrame, labels: np.ndarray, max_terms: int = 8):
     """
     Build a simple summary for each cluster:
-    - size
-    - dominant product
-    - dominant category
-    - top keywords from TF-IDF
+    - size, dominant product/category, top TF-IDF keywords
     """
-    print("Building cluster summaries...")
+    print("\n--- TOPIC EXTRACTION ---")
+    print("Generating cluster summaries...")
 
     # Attach labels to DataFrame
     df = df.copy()
     df["clusterId"] = labels
 
-    # Prepare text for TF-IDF (summary + description already in df["text"])
+    # Prepare text for TF-IDF
     texts = df["text"].fillna("").tolist()
+    
+    print("Vectorizing text (TF-IDF)...")
     vectorizer = TfidfVectorizer(
         max_features=5000,
         ngram_range=(1, 2),
@@ -3237,53 +3243,35 @@ def summarize_clusters(df: pd.DataFrame, labels: np.ndarray, max_terms: int = 8)
     cluster_ids = sorted(set(labels))
     summaries = {}
 
-    for cid in cluster_ids:
-        if cid == -1:
-            # treat -1 as noise; optionally summarise or skip
-            continue
+    for cid in tqdm(cluster_ids, desc="Summarizing Clusters"):
+        if cid == -1: continue # Skip noise summary for now
 
         mask = df["clusterId"] == cid
         idx = np.where(mask.values)[0]
-        if len(idx) == 0:
-            continue
+        if len(idx) == 0: continue
 
         cluster_df = df.loc[mask]
-
-        # Basic stats
         size = int(mask.sum())
-        product_counts = Counter(cluster_df["product"])
-        category_counts = Counter(cluster_df["category"])
 
-        top_product, top_product_count = product_counts.most_common(1)[0]
-        top_category, top_category_count = category_counts.most_common(1)[0]
+        # Metadata stats
+        prod_counts = Counter(cluster_df["product"])
+        cat_counts = Counter(cluster_df["category"])
+        top_prod = prod_counts.most_common(1)[0]
+        top_cat = cat_counts.most_common(1)[0]
 
-        # Top terms via column-summed TF-IDF
+        # Top keywords
         sub_tfidf = tfidf[idx]
-        # sum across documents
         col_sum = np.asarray(sub_tfidf.sum(axis=0)).ravel()
         top_term_idx = col_sum.argsort()[::-1][:max_terms]
         top_terms = vocab[top_term_idx].tolist()
 
         summaries[str(cid)] = {
             "size": size,
-            "topProduct": top_product,
-            "topProductFraction": top_product_count / size,
-            "topCategory": top_category,
-            "topCategoryFraction": top_category_count / size,
+            "topProduct": top_prod[0],
+            "topProductFraction": top_prod[1] / size,
+            "topCategory": top_cat[0],
+            "topCategoryFraction": top_cat[1] / size,
             "topTerms": top_terms,
-        }
-
-    # Noise summary (optional)
-    noise_mask = df["clusterId"] == -1
-    noise_size = int(noise_mask.sum())
-    if noise_size > 0:
-        summaries["-1"] = {
-            "size": noise_size,
-            "topProduct": None,
-            "topProductFraction": None,
-            "topCategory": None,
-            "topCategoryFraction": None,
-            "topTerms": [],
         }
 
     return summaries
@@ -3298,31 +3286,38 @@ def main():
     print(" Qognus Demo Platform — UMAP + HDBSCAN")
     print("==============================================")
 
-    df, embeddings = load_data()
+    try:
+        df, embeddings = load_data()
 
-    # UMAP 3D projection
-    coords_3d = compute_umap_3d(embeddings)
-    OUT_MANIFOLD.parent.mkdir(parents=True, exist_ok=True)
-    np.save(OUT_MANIFOLD, coords_3d)
-    print(f"Saved 3D manifold → {OUT_MANIFOLD}")
+        # UMAP 3D projection
+        coords_3d = compute_umap_3d(embeddings)
+        OUT_MANIFOLD.parent.mkdir(parents=True, exist_ok=True)
+        np.save(OUT_MANIFOLD, coords_3d)
+        print(f" -> Saved manifold: {OUT_MANIFOLD}")
 
-    # HDBSCAN clustering
-    labels = run_hdbscan(coords_3d)
-    np.save(OUT_LABELS, labels.astype(np.int32))
-    print(f"Saved cluster labels → {OUT_LABELS}")
+        # HDBSCAN clustering
+        labels = run_hdbscan(coords_3d)
+        np.save(OUT_LABELS, labels.astype(np.int32))
+        print(f" -> Saved labels: {OUT_LABELS}")
 
-    # Cluster summaries
-    cluster_summary = summarize_clusters(df, labels)
-    with OUT_CLUSTER_SUMMARY.open("w", encoding="utf-8") as f:
-        json.dump(cluster_summary, f, indent=2)
-    print(f"Saved cluster summary → {OUT_CLUSTER_SUMMARY}")
+        # Cluster summaries
+        cluster_summary = summarize_clusters(df, labels)
+        with OUT_CLUSTER_SUMMARY.open("w", encoding="utf-8") as f:
+            json.dump(cluster_summary, f, indent=2)
+        print(f" -> Saved summaries: {OUT_CLUSTER_SUMMARY}")
 
-    print("\nDone.\n")
+        print("\nDone! Next steps:")
+        print("1. python models/eval/embedding_health.py")
+        print("2. python models/eval/export_web_artifacts.py")
+        print("\n")
 
+    except KeyboardInterrupt:
+        print("\n[!] Script interrupted by user.")
+    except Exception as e:
+        print(f"\n[!] Error: {e}")
 
 if __name__ == "__main__":
     main()
-
 
 ==================================================
 FILE PATH: models\embed\compute_embeddings.py
@@ -3333,17 +3328,15 @@ compute_embeddings.py
 Qognus Demo Platform — ApexGrid Systems
 ---------------------------------------
 
-Loads synthetic ApexGrid support tickets, normalizes fields, computes text
-embeddings via a local Ollama model, and stores:
-- tickets.parquet
-- ticket_meta.json
-- embeddings.npy
-- embedding_ids.json
+UPDATED: Resumable Version (JSONL Cache)
+----------------------------------------
+This script maintains an append-only JSONL cache (`embeddings_cache.jsonl`).
 
-This script is designed to match the pipeline defined in:
-docs/ml_pipeline_design.md
-docs/support_taxonomy.md
-docs/data_generation_design.md
+1. Startup: Reads `embeddings_cache.jsonl` into memory to know what's done.
+2. Processing: Appends new embeddings to the file immediately (safe & fast).
+3. Finish: Exports the final aligned `embeddings.npy` and `tickets.parquet`.
+
+Interruption (Ctrl+C) is perfectly safe.
 """
 
 import json
@@ -3355,7 +3348,7 @@ import pandas as pd
 from tqdm import tqdm
 
 # ------------------------------------------------------------
-# CONFIGURATION
+# CONFIG
 # ------------------------------------------------------------
 
 DATA_DIR = pathlib.Path("data")
@@ -3364,10 +3357,14 @@ RAW_TICKETS = DATA_DIR / "raw" / "apexgrid_tickets.jsonl"
 PROCESSED_DIR = DATA_DIR / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
+# Final Artifacts
 OUT_PARQUET = PROCESSED_DIR / "tickets.parquet"
 OUT_META = PROCESSED_DIR / "ticket_meta.json"
 OUT_EMBED = PROCESSED_DIR / "embeddings.npy"
 OUT_IDS = PROCESSED_DIR / "embedding_ids.json"
+
+# Intermediate Cache (Append-only JSONL)
+CACHE_FILE = PROCESSED_DIR / "embeddings_cache.jsonl"
 
 OLLAMA_URL = "http://localhost:11434/api/embeddings"
 EMBED_MODEL = "mxbai-embed-large"    # or "nomic-embed-text"
@@ -3380,6 +3377,9 @@ EMBED_MODEL = "mxbai-embed-large"    # or "nomic-embed-text"
 def load_jsonl(path: pathlib.Path) -> list[dict]:
     """Load JSON lines file."""
     items = []
+    if not path.exists():
+        return []
+    
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -3389,13 +3389,12 @@ def load_jsonl(path: pathlib.Path) -> list[dict]:
                 obj = json.loads(line)
                 items.append(obj)
             except json.JSONDecodeError:
-                print(f"Skipping malformed JSON line: {line[:120]}...")
+                continue
     return items
 
 
 def normalize_ticket(t: dict) -> dict:
-    """Normalize one ticket’s fields based on defined data model."""
-    # Ensure required fields exist
+    """Normalize one ticket’s fields."""
     required = [
         "ticket_id", "timestamp", "product", "category", "subcategory",
         "severity", "customer_tier", "region", "environment", "channel",
@@ -3408,12 +3407,11 @@ def normalize_ticket(t: dict) -> dict:
     # Canonical severity
     sev = t["severity"].strip()
     if not sev.startswith("Sev"):
-        # try capitalizing existing numeric field
         digits = "".join(c for c in sev if c.isdigit())
         sev = f"Sev{digits}" if digits else "Sev4"
     t["severity"] = sev
 
-    # Canonical region (fallback)
+    # Canonical region
     t["region"] = t["region"].strip().lower()
 
     # Combine text fields
@@ -3425,27 +3423,59 @@ def normalize_ticket(t: dict) -> dict:
 
 
 def get_embedding_ollama(text: str, model: str = EMBED_MODEL) -> list[float]:
-    """Call Ollama embedding endpoint. Returns vector."""
+    """Call Ollama embedding endpoint."""
     try:
         resp = requests.post(
             OLLAMA_URL,
             json={"model": model, "prompt": text},
-            timeout=30
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data["embedding"]
-    except Exception as e:
-        print(f"[ERROR] Embedding failed: {e}. Retrying in 2 seconds.")
-        time.sleep(2)
-        # single retry
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": model, "prompt": text},
-            timeout=30
+            timeout=60
         )
         resp.raise_for_status()
         return resp.json()["embedding"]
+    except Exception as e:
+        print(f"[WARN] Embedding failed: {e}. Retrying in 2 seconds...")
+        time.sleep(2)
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": model, "prompt": text},
+            timeout=60
+        )
+        resp.raise_for_status()
+        return resp.json()["embedding"]
+
+
+# ------------------------------------------------------------
+# CACHE MANAGEMENT
+# ------------------------------------------------------------
+
+def load_cache_to_dict() -> dict:
+    """
+    Reads the JSONL cache and returns a dict: { ticket_id: embedding_list }
+    If duplicates exist (rare), the last one wins.
+    """
+    cache = {}
+    if not CACHE_FILE.exists():
+        return cache
+    
+    print(f"Reading cache index from {CACHE_FILE}...")
+    with CACHE_FILE.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line: continue
+            try:
+                record = json.loads(line)
+                cache[record["ticket_id"]] = record["embedding"]
+            except Exception:
+                continue
+    return cache
+
+def append_to_cache(file_handle, ticket_id, vector):
+    """
+    Appends a single record to the open file handle.
+    """
+    record = {"ticket_id": ticket_id, "embedding": vector}
+    file_handle.write(json.dumps(record) + "\n")
+    file_handle.flush() # Ensure it hits disk immediately
 
 
 # ------------------------------------------------------------
@@ -3454,29 +3484,89 @@ def get_embedding_ollama(text: str, model: str = EMBED_MODEL) -> list[float]:
 
 def main():
     print("==============================================")
-    print(" Qognus Demo Platform — Compute Embeddings")
+    print(" Qognus Demo Platform — Resumable Embeddings")
     print("==============================================")
-    print(f"Loading tickets from: {RAW_TICKETS}")
-
+    
     if not RAW_TICKETS.exists():
-        raise FileNotFoundError(
-            f"Cannot find synthetic ticket file at {RAW_TICKETS}. "
-            f"Ensure you ran generate_tickets_ollama.py first."
-        )
+        raise FileNotFoundError(f"Missing {RAW_TICKETS}")
 
+    # 1. Load Raw Tickets
     raw_items = load_jsonl(RAW_TICKETS)
     if not raw_items:
-        raise RuntimeError("No valid tickets found. Aborting.")
-
-    print(f"Loaded {len(raw_items)} tickets.")
-
-    # Normalize
+        raise RuntimeError("No raw tickets found.")
+    
+    print(f"Loaded {len(raw_items)} raw tickets.")
+    
+    # 2. Normalize
     print("Normalizing...")
     normed = [normalize_ticket(t) for t in raw_items]
     df = pd.DataFrame(normed)
 
-    # Save metadata (ticket_id -> metadata)
-    print("Saving metadata...")
+    # 3. Load Existing Progress
+    embedding_cache = load_cache_to_dict()
+    print(f"Cache contains {len(embedding_cache)} completed embeddings.")
+
+    # 4. Open Cache File for Appending
+    # 'a' mode creates the file if it doesn't exist, and appends if it does.
+    print("\nStarting embedding loop (Ctrl+C to pause safely)...")
+    
+    new_count = 0
+    
+    try:
+        with CACHE_FILE.open("a", encoding="utf-8") as f_cache:
+            
+            for idx, row in tqdm(df.iterrows(), total=len(df), desc="Embeddings"):
+                tid = row["ticket_id"]
+                
+                # SKIP if already done
+                if tid in embedding_cache:
+                    continue 
+
+                # COMPUTE
+                vec = get_embedding_ollama(row["text"])
+                
+                # SAVE immediately
+                append_to_cache(f_cache, tid, vec)
+                
+                # Update memory cache too (so we don't re-do it if logic loops)
+                embedding_cache[tid] = vec
+                new_count += 1
+                
+    except KeyboardInterrupt:
+        print("\n\n[!] Stopped by user. Progress is saved.")
+        print(f"You can resume later. ({new_count} new items saved this run)")
+        return
+
+    print(f"\nEmbedding complete. ({new_count} new items added)")
+
+    # ---------------------------------------------------------
+    # 5. Final Export
+    # ---------------------------------------------------------
+    # We must ensure the output files align exactly with the DataFrame order
+    
+    # Verify completeness
+    missing = [t for t in df["ticket_id"] if t not in embedding_cache]
+    if missing:
+        print(f"WARNING: {len(missing)} tickets are still missing. Run script again.")
+        return
+
+    print("Generating aligned artifacts...")
+    
+    ordered_embeddings = []
+    ordered_ids = []
+    
+    for _, row in df.iterrows():
+        tid = row["ticket_id"]
+        vec = embedding_cache[tid]
+        ordered_embeddings.append(vec)
+        ordered_ids.append(tid)
+
+    emb_matrix = np.array(ordered_embeddings, dtype=np.float32)
+
+    # Save Parquet
+    df.to_parquet(OUT_PARQUET, index=False)
+    
+    # Save Metadata
     meta_dict = {}
     for _, row in df.iterrows():
         meta_dict[row["ticket_id"]] = {
@@ -3490,46 +3580,22 @@ def main():
             "channel": row["channel"],
             "timestamp": row["timestamp"]
         }
-
     with OUT_META.open("w", encoding="utf-8") as f:
         json.dump(meta_dict, f, indent=2)
 
-    # Save parquet
-    df.to_parquet(OUT_PARQUET, index=False)
-    print(f"Saved tickets.parquet → {OUT_PARQUET}")
-
-    # ---------------------------------------------------------
-    # Compute embeddings
-    # ---------------------------------------------------------
-    print("\nComputing embeddings from Ollama …")
-    texts = df["text"].tolist()
-    ticket_ids = df["ticket_id"].tolist()
-
-    all_embeddings = []
-    for text in tqdm(texts, desc="Embedding"):
-        vec = get_embedding_ollama(text)
-        all_embeddings.append(vec)
-
-    emb_matrix = np.array(all_embeddings, dtype=np.float32)
-
-    # Save embeddings & id alignment
+    # Save Embeddings & IDs
     np.save(OUT_EMBED, emb_matrix)
     with OUT_IDS.open("w", encoding="utf-8") as f:
-        json.dump(ticket_ids, f, indent=2)
+        json.dump(ordered_ids, f, indent=2)
 
-    print(f"\nSaved embeddings → {OUT_EMBED}")
-    print(f"Saved embedding_ids → {OUT_IDS}")
+    print(f"\nSUCCESS:")
+    print(f"- Tickets:    {OUT_PARQUET}")
+    print(f"- Embeddings: {OUT_EMBED} (Shape: {emb_matrix.shape})")
+    print("\nYou can now run: python models/cluster/cluster_umap_hdbscan.py")
 
-    print("\nDone.\n")
-
-
-# ------------------------------------------------------------
-# ENTRYPOINT
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
     main()
-
 
 ==================================================
 FILE PATH: models\eval\embedding_health.py
@@ -4037,13 +4103,13 @@ anomaly_model.py
 Qognus Demo Platform — ApexGrid / GridSense
 -------------------------------------------
 
-Trains and evaluates an unsupervised anomaly detection model on the
-synthetic GridSense multivariate time series.
+IMPROVED MODEL: Per-Substation Scaling + PCA
+--------------------------------------------
+Problem: Global scaling allows large substations (100MW) to dominate the 
+anomaly threshold, hiding faults in small substations (50MW).
 
-UPDATES:
-- Implements Strict Temporal Splitting (Train on Past, Eval on Future).
-- Auto-calibrates 'contamination' based on Training set density.
-- Implements 'Soft Metrics' (Time-Tolerant Scoring).
+Solution: We standardize (Z-score) each substation INDIVIDUALLY before 
+feeding them to the global PCA. This aligns all scores to a unified 0-1 range.
 """
 
 import json
@@ -4052,7 +4118,8 @@ from typing import List, Dict, Any, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import IsolationForest
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 # ------------------------------------------------------------
 # CONFIG
@@ -4067,32 +4134,28 @@ PROC_DIR.mkdir(parents=True, exist_ok=True)
 WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 IN_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
-OUT_PARQUET = PROC_DIR / "gridsense_timeseries_with_scores.parquet"
 OUT_JS = WEB_DATA_DIR / "gridsense_timeseries_artifacts.js"
 
-WINDOW = 12  # Rolling window size
+WINDOW = 6  
 FEATURE_COLS = ["load_mw", "voltage_kv", "current_a", "freq_hz", "oil_temp_c"]
-RANDOM_SEED = 42
 
 # ------------------------------------------------------------
 # HELPERS
 # ------------------------------------------------------------
 
-def build_window_features(
-    df: pd.DataFrame,
-    window: int,
-    feature_cols: List[str],
-) -> Tuple[pd.DataFrame, np.ndarray]:
+def build_features_and_scale(df, window, feature_cols):
     """
-    Creates rolling window features for time-series models.
+    Builds windows AND scales each substation individually.
+    Returns:
+      - window_df: Metadata dataframe
+      - X_scaled: The feature matrix ready for PCA
     """
-    df = df.copy()
-    df = df.sort_values(["substation_id", "timestamp"])
-
+    df = df.copy().sort_values(["substation_id", "timestamp"])
+    
     all_rows = []
     all_feats = []
 
-    # Process per substation to avoid boundary bleeding
+    # Process per substation
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
         values = grp[feature_cols].to_numpy()
@@ -4100,19 +4163,26 @@ def build_window_features(
         ts = grp["timestamp"].to_numpy()
         region = grp["region"].iloc[0]
 
-        if len(grp) < window:
-            continue
+        if len(grp) < window: continue
+
+        sub_feats = []
+        sub_rows = []
 
         for i in range(window - 1, len(grp)):
             start = i - window + 1
             end = i + 1
-            
-            # Flatten window into a single feature vector
             window_vals = values[start:end, :]
-            window_flat = window_vals.flatten()
 
-            # Labeling: If >30% of the window is anomalous, label it 1
-            # This reduces noise from single-point blips
+            # Features: Current Value + Volatility + Trend
+            current = window_vals[-1]             
+            std = np.std(window_vals, axis=0)     
+            delta = window_vals[-1] - window_vals[0]
+            
+            # 15 dimensions
+            feat_vector = np.concatenate([current, std, delta]) 
+            sub_feats.append(feat_vector)
+
+            # Metadata
             anomaly_ratio = labels[start:end].sum() / window
             window_label = 1 if anomaly_ratio > 0.3 else 0
 
@@ -4122,58 +4192,40 @@ def build_window_features(
                 "region": region,
                 "window_label": window_label,
             }
-            all_rows.append(row)
-            all_feats.append(window_flat)
+            sub_rows.append(row)
+
+        if not sub_feats: continue
+
+        # --- PER-SUBSTATION SCALING ---
+        # Normalize this substation to Mean=0, Std=1
+        # This ensures a 100MW station looks the same as a 10MW station to PCA
+        scaler = StandardScaler()
+        sub_feats_scaled = scaler.fit_transform(np.array(sub_feats))
+        
+        all_feats.append(sub_feats_scaled)
+        all_rows.extend(sub_rows)
 
     window_df = pd.DataFrame(all_rows)
-    X = np.array(all_feats, dtype=float)
-
-    return window_df, X
-
-def train_isolation_forest(X: np.ndarray, contamination: float) -> IsolationForest:
-    print(f"Training IsolationForest with contamination={contamination:.3f}...")
-    model = IsolationForest(
-        n_estimators=200,
-        contamination=contamination,
-        random_state=RANDOM_SEED,
-        n_jobs=-1,
-    )
-    model.fit(X)
-    return model
-
-def evaluate_soft_metrics(
-    y_true: np.ndarray, 
-    y_pred: np.ndarray, 
-    tolerance: int = 2
-) -> Dict[str, float]:
-    """
-    Calculates Precision/Recall with a time tolerance (e.g. +/- 2 steps).
-    If a prediction is within 'tolerance' steps of a real anomaly, it counts as a hit.
-    """
-    n = len(y_true)
-    if n == 0:
-        return {"precision": 0.0, "recall": 0.0, "contamination": 0.0}
+    # Stack all substations together for global PCA training
+    X_scaled = np.vstack(all_feats)
     
-    # 1. Expand Ground Truth (Soft Targets)
-    # If t is anomaly, then t-2...t+2 are valid "hit" zones
+    return window_df, X_scaled
+
+def evaluate_soft_metrics(y_true, y_pred, tolerance=3):
+    n = len(y_true)
+    if n == 0: return {"precision": 0.0, "recall": 0.0, "contamination": 0.0}
+    
     y_true_soft = np.zeros(n, dtype=int)
     anomaly_indices = np.where(y_true == 1)[0]
-    
     for idx in anomaly_indices:
         start = max(0, idx - tolerance)
         end = min(n, idx + tolerance + 1)
         y_true_soft[start:end] = 1
         
-    # 2. Calculate Metrics using Soft Targets for Precision
-    # (Did I predict in a valid zone?)
     tp_soft = np.sum((y_pred == 1) & (y_true_soft == 1))
     fp_soft = np.sum((y_pred == 1) & (y_true_soft == 0))
-    
     precision = tp_soft / (tp_soft + fp_soft) if (tp_soft + fp_soft) > 0 else 0.0
     
-    # 3. Calculate Recall (Did I catch the events?)
-    # Soft Recall: If I predicted 1, and it was close to a 1, count it.
-    # Inverse expansion: Expand Predictions to see if they touch Truths
     y_pred_expanded = np.zeros(n, dtype=int)
     pred_indices = np.where(y_pred == 1)[0]
     for idx in pred_indices:
@@ -4183,7 +4235,6 @@ def evaluate_soft_metrics(
         
     tp_recall = np.sum((y_pred_expanded == 1) & (y_true == 1))
     fn_recall = np.sum((y_pred_expanded == 0) & (y_true == 1))
-    
     recall = tp_recall / (tp_recall + fn_recall) if (tp_recall + fn_recall) > 0 else 0.0
     
     return {
@@ -4192,23 +4243,15 @@ def evaluate_soft_metrics(
         "contamination": float(round(np.mean(y_pred), 3))
     }
 
-def export_js_artifact(
-    df: pd.DataFrame,
-    metrics: Dict[str, float],
-    out_path: pathlib.Path,
-    max_points_per_substation: int = 1000,
-) -> None:
-    # Ensure timestamp is ISO string
+def export_js_artifact(df, metrics, out_path, max_points=1000):
     df = df.reset_index().copy()
     df["timestamp_iso"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    series_records: List[Dict[str, Any]] = []
-
+    series_records = []
+    
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
-        # Downsample
-        if len(grp) > max_points_per_substation:
-            idx = np.linspace(0, len(grp) - 1, max_points_per_substation).astype(int)
+        if len(grp) > max_points:
+            idx = np.linspace(0, len(grp) - 1, max_points).astype(int)
             grp = grp.iloc[idx]
 
         for _, row in grp.iterrows():
@@ -4220,13 +4263,8 @@ def export_js_artifact(
                 "predicted_anomaly": int(row["predicted_anomaly"]),
             })
 
-    payload = {
-        "summary": metrics,
-        "series": series_records,
-    }
-
+    payload = {"summary": metrics, "series": series_records}
     js_content = "window.GRIDSENSE_TIMESERIES = " + json.dumps(payload, indent=2) + ";\n"
-    print(f"Writing JS artifact to: {out_path}")
     out_path.write_text(js_content, encoding="utf-8")
 
 # ------------------------------------------------------------
@@ -4235,87 +4273,69 @@ def export_js_artifact(
 
 def main():
     print("===================================================")
-    print(" GridSense Time Series Anomaly Model (Temporal Split) ")
+    print(" GridSense PCA (Per-Substation Scaling) ")
     print("===================================================")
 
     if not IN_PARQUET.exists():
-        raise FileNotFoundError(f"Input parquet not found: {IN_PARQUET}")
+        raise FileNotFoundError(f"Input parquet not found.")
 
     df_full = pd.read_parquet(IN_PARQUET)
     df_full = df_full.sort_values(["substation_id", "timestamp"])
 
-    print("Building rolling window features...")
-    window_df, X = build_window_features(
-        df_full.reset_index(), window=WINDOW, feature_cols=FEATURE_COLS
-    )
+    print("Building and scaling features per substation...")
+    # NOTE: X_scaled is already standardized per-substation here
+    window_df, X_scaled = build_features_and_scale(df_full.reset_index(), WINDOW, FEATURE_COLS)
 
-    # --- 1. PREPARE TEMPORAL SPLIT ---
-    # We must sort window_df and X strictly by time to ensure "Past" vs "Future"
-    # Get indices that sort the DataFrame by timestamp
-    sort_idxs = np.argsort(window_df["timestamp"].values)
+    # 1. PCA Training (Global Physics Model)
+    print("Training Global PCA...")
+    pca = PCA(n_components=0.85) # Keep 85% variance (Physics), discard 15% (Noise)
+    pca.fit(X_scaled)
+    print(f"PCA Components: {pca.n_components_}")
     
-    # Reorder both X and window_df using these indices
-    window_df = window_df.iloc[sort_idxs].reset_index(drop=True)
-    X = X[sort_idxs]
+    # 2. Score (Reconstruction Error)
+    print("Scoring...")
+    X_recon = pca.inverse_transform(pca.transform(X_scaled))
+    diff = X_scaled - X_recon
+    mse = np.mean(diff ** 2, axis=1)
     
-    # Split point: 80% Train (Past), 20% Test (Future)
+    # 3. Dynamic Thresholding
+    # Since we normalized everything, 1.0 MSE is a "Standard Unit of Brokenness"
+    # We don't need complex percentiles anymore.
+    # Sigma rule on the MSE distribution
+    mu = np.mean(mse)
+    sigma = np.std(mse)
+    
+    # Threshold: 2 Standard Deviations above mean error
+    threshold = mu + (2.0 * sigma)
+    print(f"Threshold (MSE): {threshold:.4f}")
+    
+    preds = (mse > threshold).astype(int)
+    
+    # Normalize score visually: 0.0 to ~1.0 (where 0.5 is threshold)
+    scores_viz = mse / (threshold * 2.0)
+    scores_viz = np.clip(scores_viz, 0, 1.0)
+
+    # 4. Smoothing
+    preds_smooth = pd.Series(preds).rolling(window=3, center=False).max().fillna(0).astype(int).values
+
+    window_df["anomaly_score"] = scores_viz
+    window_df["predicted_anomaly"] = preds_smooth
+
+    # 5. Evaluate
     split_idx = int(len(window_df) * 0.8)
-    
-    X_train = X[:split_idx]
-    y_train = window_df["window_label"].iloc[:split_idx]
-    
-    X_test = X[split_idx:]
-    y_test = window_df["window_label"].iloc[split_idx:].to_numpy()
-
-    print(f"Temporal Split: Train on first {split_idx} samples, Eval on last {len(X_test)} samples.")
-
-    # --- 2. AUTO-CALIBRATION (Using ONLY Train Set) ---
-    actual_rate = y_train.mean()
-    # Add a small buffer (1.2x)
-    contamination = max(0.01, min(0.15, actual_rate * 1.2))
-    
-    print(f"Auto-calibrated contamination: {contamination:.3f} (Train Rate: {actual_rate:.3f})")
-
-    # --- 3. TRAIN (On Past Data Only) ---
-    model = train_isolation_forest(X_train, contamination)
-
-    # --- 4. SCORE (Full Dataset) ---
-    # We score everything so the UI has a complete timeline, but metrics rely only on Test
-    print("Scoring full timeline...")
-    scores_raw = model.decision_function(X)
-    scores = -scores_raw # Invert so high = anomaly
-    
-    # Normalize scores [0,1]
-    scores = (scores - scores.min()) / (scores.max() - scores.min())
-    
-    # --- 5. PREDICT ---
-    # Determine threshold based on TRAINING distribution 
-    train_scores = scores[:split_idx]
-    threshold = np.quantile(train_scores, 1.0 - contamination)
-    
-    preds = (scores >= threshold).astype(int)
-
-    window_df["anomaly_score"] = scores
-    window_df["predicted_anomaly"] = preds
-
-    # --- 6. EVALUATE (On Future Data Only) ---
-    print("\nEvaluating Performance on Held-Out Future Data (Last 20%)...")
     metrics = evaluate_soft_metrics(
-        y_true=y_test, 
-        y_pred=preds[split_idx:], 
-        tolerance=2
+        window_df["window_label"].iloc[split_idx:].to_numpy(), 
+        preds_smooth[split_idx:], 
+        tolerance=3
     )
-    print("Test Set Metrics:", metrics)
+    print("Metrics:", metrics)
 
-    # Merge back for export
-    # Note: df_full needs to be merged with our time-sorted window_df
+    # Export
     df_out = df_full.reset_index().merge(
         window_df[["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]],
         on=["substation_id", "timestamp"],
         how="left"
-    )
-    df_out["anomaly_score"] = df_out["anomaly_score"].fillna(0.0)
-    df_out["predicted_anomaly"] = df_out["predicted_anomaly"].fillna(0).astype(int)
+    ).fillna(0)
 
     export_js_artifact(df_out, metrics, OUT_JS)
     print("Done.")
@@ -4362,22 +4382,13 @@ generate_gridsense_timeseries.py
 Qognus Demo Platform — ApexGrid Systems / GridSense
 ---------------------------------------------------
 
-Generates synthetic multivariate SCADA-like time series data for GridSense
-using stochastic processes and physics-based relationships.
+UPDATED: "Clean & Simple"
+-------------------------
+We simplified the physics to make "Normal" data extremely predictable 
+(smooth sine waves) and "Anomalies" visually dramatic.
 
-Improvements over basic version:
-1. Load Modeling: Uses an Ornstein-Uhlenbeck (mean-reverting) process 
-   superimposed on a daily/weekly seasonality curve.
-2. Physics: 
-   - Voltage drops (sag) are proportional to Load squared (I^2*R losses).
-   - Oil Temperature follows a first-order differential equation (thermal lag).
-3. Realistic Anomalies:
-   - "sensor_freeze": Values stick to a constant (0.0).
-   - "thermal_runaway": Rapid linear climb (+40C).
-   - "voltage_collapse": Severe drop (0.7x) due to reactive power events.
-
-Output:
-- data/raw/gridsense_timeseries.parquet
+- Normal: Smooth daily cycles, low noise.
+- Anomalies: Massive spikes, flatlines, and drifts.
 """
 
 import numpy as np
@@ -4399,7 +4410,7 @@ OUT_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
 # Simulation Settings
 DAYS = 14
 FREQ = "5min"
-DT_HOURS = 5 / 60.0  # Time step in hours
+DT_HOURS = 5 / 60.0 
 
 NUM_SUBSTATIONS = 16
 SUBSTATIONS = [f"GS-{i:03d}" for i in range(1, NUM_SUBSTATIONS + 1)]
@@ -4408,131 +4419,43 @@ REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
 RANDOM_SEED = 42
 
 # ------------------------------------------------------------
-# PHYSICS & STOCHASTIC HELPERS
+# GENERATORS
 # ------------------------------------------------------------
 
-def get_seasonality(t_index: pd.DatetimeIndex) -> np.ndarray:
-    """
-    Returns a baseline load curve (0.0 to 1.0) based on hour of day and day of week.
-    Double-hump pattern typical of residential/industrial mix.
-    """
-    hour = t_index.hour + t_index.minute / 60.0
-    day_of_week = t_index.dayofweek
-    
-    # Primary daily cycle (Peak at 9AM and 7PM)
-    # Using a mix of sin waves to create a non-perfect shape
-    morning_peak = np.exp(-((hour - 9)**2) / 8)
-    evening_peak = np.exp(-((hour - 19)**2) / 10)
-    base_load = 0.3
-    
-    daily_shape = base_load + 0.4 * morning_peak + 0.5 * evening_peak
-    
-    # Weekend reduction factor (0.8x on Sat/Sun)
-    weekend_factor = np.where(day_of_week >= 5, 0.8, 1.0)
-    
-    return daily_shape * weekend_factor
-
-def generate_ou_process(
-    length: int, 
-    target_series: np.ndarray, 
-    theta: float = 0.15, 
-    sigma: float = 0.05, 
-    rng: np.random.Generator = None
-) -> np.ndarray:
-    """
-    Ornstein-Uhlenbeck process: dX = theta*(mu - X)*dt + sigma*dW
-    Creates realistic 'wandering' around the target seasonality.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-        
-    x = np.zeros(length)
-    x[0] = target_series[0]
-    
-    noise = rng.normal(0, 1, length)
-    
-    for t in range(1, length):
-        dx = theta * (target_series[t] - x[t-1]) * DT_HOURS + sigma * np.sqrt(DT_HOURS) * noise[t]
-        x[t] = x[t-1] + dx
-        
-    # Clamp to physical realism (cannot have negative load)
-    return np.maximum(x, 0.05)
-
-def thermal_model(
-    load_series: np.ndarray, 
-    ambient_temp: np.ndarray, 
-    thermal_resistance: float = 15.0, 
-    tau: float = 4.0
-) -> np.ndarray:
-    """
-    Simple thermal model for transformer oil.
-    dT/dt = (1/tau) * (T_target - T_current)
-    where T_target = Ambient + (Load_Factor^2 * Thermal_Resistance)
-    """
-    n = len(load_series)
-    temp = np.zeros(n)
-    temp[0] = ambient_temp[0] + (load_series[0]**2 * thermal_resistance)
-    
-    # Precompute decay factor for discrete step
-    alpha = 1 - np.exp(-DT_HOURS / tau)
-    
-    for t in range(1, n):
-        # I^2 R heating relationship
-        heat_rise = (load_series[t]**2) * thermal_resistance
-        target = ambient_temp[t] + heat_rise
-        
-        # Exponential smoothing (low-pass filter effect of thermal mass)
-        temp[t] = temp[t-1] + alpha * (target - temp[t-1])
-        
-    return temp
-
-# ------------------------------------------------------------
-# SUBSTATION GENERATOR
-# ------------------------------------------------------------
-
-def generate_substation_data(
-    sub_id: str, 
-    region: str, 
-    t_index: pd.DatetimeIndex, 
-    rng: np.random.Generator
-) -> pd.DataFrame:
-    
+def generate_substation_data(sub_id, region, t_index, rng):
     n = len(t_index)
     
-    # 1. Nominal Parameters
-    capacity_mw = rng.uniform(40, 120)
-    nominal_voltage = 132.0 # kV
+    # 1. Simple Seasonality (Sine Wave)
+    # Hour of day (0-24)
+    hours = t_index.hour + t_index.minute / 60.0
     
-    # 2. Load Generation (MW)
-    # Seasonal baseline + Stochastic variation
-    seasonality = get_seasonality(t_index)
-    load_factor = generate_ou_process(n, seasonality, theta=2.0, sigma=0.2, rng=rng)
-    load_mw = load_factor * capacity_mw
+    # Smooth daily sine wave for Load (0.0 to 1.0)
+    # Peak at 14:00 (2pm)
+    daily_cycle = 0.5 + 0.4 * np.sin((hours - 8) * (2 * np.pi / 24))
     
-    # 3. Ambient Temp (Daily cycle + random weather fronts)
-    hour = t_index.hour + t_index.minute / 60.0
-    day_temp_cycle = 20 + 5 * np.sin((hour - 10) * np.pi / 12)
-    weather_fronts = generate_ou_process(n, np.zeros(n), theta=0.1, sigma=1.0, rng=rng)
-    ambient_c = day_temp_cycle + weather_fronts
-
-    # 4. Physics Derivations
+    # Tiny noise (so PCA fits perfectly)
+    noise = rng.normal(0, 0.02, n)
+    load_factor = np.clip(daily_cycle + noise, 0.1, 1.0)
     
-    # Transformer Oil Temp (Lagging indicator)
-    oil_temp_c = thermal_model(load_factor, ambient_c, thermal_resistance=25.0, tau=3.0)
+    # 2. Physics (Simple & Deterministic)
+    nominal_mw = 50.0
+    nominal_volt = 132.0
     
-    # Voltage (kV) - drops as load increases (Line Impedance)
-    # V = V_nom - (Load * Impedance_Factor) + Grid_Noise
-    impedance_noise = rng.normal(0, 0.05, n)
-    voltage_kv = nominal_voltage * (1 - 0.02 * load_factor) + impedance_noise
+    load_mw = load_factor * nominal_mw
     
-    # Current (Amps) - P = sqrt(3) * V * I * PF
-    # I = P / (sqrt(3) * V * PF)
-    pf = 0.95 # Power Factor
-    current_a = (load_mw * 1e3) / (np.sqrt(3) * voltage_kv * pf)
+    # Voltage dips slightly when load is high (Inverse relationship)
+    voltage_kv = nominal_volt * (1.0 - 0.02 * load_factor) + rng.normal(0, 0.01, n)
     
-    # Frequency (Hz) - 50Hz or 60Hz base
-    base_freq = 60.0 if "us" in region else 50.0
-    freq_hz = base_freq + rng.normal(0, 0.02, n)
+    # Current follows Load perfectly
+    current_a = (load_mw * 1000) / (np.sqrt(3) * voltage_kv * 0.95)
+    
+    # Temp is just a lagged, smoothed version of Load
+    temp_base = 35.0
+    # Simple exponential moving average for lag
+    temp_c = pd.Series(load_factor * 40 + temp_base).ewm(span=24).mean().values
+    
+    # Frequency is basically flat
+    freq_hz = np.full(n, 60.0) + rng.normal(0, 0.005, n)
 
     df = pd.DataFrame({
         "timestamp": t_index,
@@ -4541,77 +4464,62 @@ def generate_substation_data(
         "load_mw": load_mw.round(2),
         "voltage_kv": voltage_kv.round(2),
         "current_a": current_a.round(2),
-        "oil_temp_c": oil_temp_c.round(2),
+        "oil_temp_c": temp_c.round(2),
         "freq_hz": freq_hz.round(3),
         "is_anomaly": 0,
         "anomaly_type": None
     })
-    
     return df
 
 # ------------------------------------------------------------
-# ANOMALY INJECTION
+# ANOMALY INJECTION (CARTOONISH)
 # ------------------------------------------------------------
 
 def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
-    """
-    Injects specific, severe realistic fault signatures.
-    Uses .iloc to avoid off-by-one errors with inclusive slicing.
-    """
     df = df.copy()
     n_points = len(df)
     
-    # Indices for columns to modify
     idx_load = df.columns.get_loc("load_mw")
     idx_curr = df.columns.get_loc("current_a")
     idx_temp = df.columns.get_loc("oil_temp_c")
     idx_volt = df.columns.get_loc("voltage_kv")
+    idx_freq = df.columns.get_loc("freq_hz")
     idx_anom = df.columns.get_loc("is_anomaly")
     idx_type = df.columns.get_loc("anomaly_type")
 
-    # 1. SENSOR FREEZE (Flatline at 0.0 for obvious fault)
-    if rng.random() < 0.4:
+    # 1. SQUARE WAVE SURGE (Massive Spike)
+    # Voltage jumps 20% instantly and stays there for 2 hours
+    if rng.random() < 0.7:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
-        duration = rng.integers(12, 48) # 1-4 hours
+        duration = 24 # 2 hours
         end = min(start + duration, n_points)
         
-        if end > start:
-            # Flatline at 0
-            df.iloc[start:end, idx_load] = 0.0
-            df.iloc[start:end, idx_curr] = 0.0
-            
-            # Mark labels
-            df.iloc[start:end, idx_anom] = 1
-            df.iloc[start:end, idx_type] = "sensor_failure"
+        df.iloc[start:end, idx_volt] *= 1.25 # +25% Surge
+        df.iloc[start:end, idx_anom] = 1
+        df.iloc[start:end, idx_type] = "surge"
 
-    # 2. THERMAL RUNAWAY (Cooling failure, massive climb)
-    if rng.random() < 0.4:
+    # 2. FLATLINE FAILURE (Dead Zero)
+    # Load drops to near zero instantly
+    if rng.random() < 0.7:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
-        duration = rng.integers(24, 72) # 2-6 hours
+        duration = 36 # 3 hours
         end = min(start + duration, n_points)
         
-        if end > start:
-            # Steep ramp: +40C over duration
-            ramp = np.linspace(0, 40, end - start)
-            
-            df.iloc[start:end, idx_temp] += ramp
-            
-            df.iloc[start:end, idx_anom] = 1
-            df.iloc[start:end, idx_type] = "thermal_runaway"
+        df.iloc[start:end, idx_load] = 0.5 # Nearly dead
+        df.iloc[start:end, idx_curr] = 0.0 # No current
+        df.iloc[start:end, idx_anom] = 1
+        df.iloc[start:end, idx_type] = "flatline"
 
-    # 3. VOLTAGE COLLAPSE (Severe Grid fault)
-    if rng.random() < 0.4:
+    # 3. FREQUENCY NOISE (Wobble)
+    if rng.random() < 0.7:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
-        duration = rng.integers(6, 18) # Short duration
+        duration = 48
         end = min(start + duration, n_points)
         
-        if end > start:
-            # 30% Voltage Drop, 50% Current Spike
-            df.iloc[start:end, idx_volt] *= 0.7 
-            df.iloc[start:end, idx_curr] *= 1.5 
-            
-            df.iloc[start:end, idx_anom] = 1
-            df.iloc[start:end, idx_type] = "voltage_collapse"
+        noise = rng.normal(0, 0.4, end-start) # Huge 0.4Hz noise
+        df.iloc[start:end, idx_freq] += noise
+        df.iloc[start:end, idx_anom] = 1
+        df.iloc[start:end, idx_type] = "freq_noise"
         
     return df
 
@@ -4621,37 +4529,28 @@ def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame
 
 def main():
     print("==============================================")
-    print(" GridSense — Physics-based Data Generator (High Severity)")
+    print(" GridSense — Simple Data (Clean vs Broken)")
     print("==============================================")
     
     rng = np.random.default_rng(RANDOM_SEED)
-    
-    # 1. Create Time Index
     end_time = datetime.datetime.now(datetime.timezone.utc)
     start_time = end_time - datetime.timedelta(days=DAYS)
     t_index = pd.date_range(start=start_time, end=end_time, freq=FREQ)
     
     all_subs = []
-    
-    # 2. Generate Data for each Substation
     for i, sub in enumerate(SUBSTATIONS):
         region = REGIONS[i % len(REGIONS)]
         print(f"Generating {sub} ({region})...")
-        
         df_sub = generate_substation_data(sub, region, t_index, rng)
         df_sub = inject_anomalies(df_sub, rng)
-        
         all_subs.append(df_sub)
         
-    # 3. Combine and Save
     df_final = pd.concat(all_subs)
     df_final.sort_values(["substation_id", "timestamp"], inplace=True)
     
-    # Save to Parquet (efficient storage)
     print(f"Saving {len(df_final)} rows to {OUT_PARQUET}...")
     df_final.to_parquet(OUT_PARQUET, index=False)
-    
-    print("Done. Run 'python models/gridsense_timeseries/anomaly_model.py' next to generate web artifacts.")
+    print("Done.")
 
 if __name__ == "__main__":
     main()
@@ -5267,6 +5166,8 @@ FILE PATH: web\index.html
   <script src="./js/charts.js" defer></script>
   <script src="./js/tabs.js" defer></script>
   <script src="./js/gridsense_card.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="./js/heliocloud_card.js" defer></script>
 
 </head>
 
@@ -5517,6 +5418,140 @@ FILE PATH: web\components\gridsense_card.html
 </section>
 
 ==================================================
+FILE PATH: web\components\heliocloud_card.html
+==================================================
+
+<section
+  class="mt-10 max-w-6xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl backdrop-blur-sm fade-in"
+>
+  <div class="flex items-start justify-between gap-6 mb-8">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        HelioCloud — Support Intelligence
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-xl">
+        Semantic clustering and intent analysis of support tickets.
+      </p>
+    </div>
+
+    <div
+      class="inline-flex items-center rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-medium text-indigo-300 whitespace-nowrap"
+    >
+      <span class="mr-2 h-2 w-2 rounded-full bg-indigo-400 animate-pulse"></span>
+      NLP Pipeline Active
+    </div>
+  </div>
+
+  <div data-tab-group="heliocloud" class="flex flex-col min-h-[500px]">
+    
+    <div class="flex-none flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400 mb-6">
+      <button
+        type="button"
+        data-tab-target="neural"
+        class="pb-3 border-b-2 border-indigo-500 text-slate-50 transition-colors"
+      >
+        Neural Atlas (3D)
+      </button>
+      <button
+        type="button"
+        data-tab-target="topics"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Topic Clusters
+      </button>
+      <button
+        type="button"
+        data-tab-target="triage"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Triage Load
+      </button>
+    </div>
+
+    <div data-tab-content="neural" class="flex-1 flex flex-col relative min-h-0 animate-fade-in group">
+      <div id="hc-3d-container" class="flex-none relative rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden w-full h-[380px] shadow-2xl">
+        <div id="hc-tooltip" class="absolute hidden pointer-events-none z-10 bg-slate-900/90 border border-slate-700 p-3 rounded-lg shadow-xl max-w-xs backdrop-blur-md transition-opacity duration-150">
+            <p id="hc-tt-id" class="text-[0.65rem] font-mono text-indigo-400 mb-1">TCK-0000</p>
+            <p id="hc-tt-summary" class="text-xs text-slate-200 font-medium leading-tight">Summary goes here...</p>
+            <div class="mt-2 flex gap-2">
+                <span id="hc-tt-cat" class="text-[0.6rem] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">Category</span>
+                <span id="hc-tt-sev" class="text-[0.6rem] bg-slate-800 px-1.5 py-0.5 rounded text-slate-400 border border-slate-700">Sev3</span>
+            </div>
+        </div>
+      </div>
+      
+      <div class="absolute bottom-16 left-4 pointer-events-none">
+        <h4 class="text-xs text-slate-500 mb-2 font-bold">Product Clusters:</h4>
+        <div class="flex items-center gap-2 mb-1">
+            <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+            <span class="text-xs text-slate-400">HelioCloud (SaaS)</span>
+        </div>
+        <div class="flex items-center gap-2 mb-1">
+            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+            <span class="text-xs text-slate-400">GridSense (Energy IoT)</span>
+        </div>
+        <div class="flex items-center gap-2 mb-1">
+            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+            <span class="text-xs text-slate-400">LineaOps (Manufacturing)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+            <span class="text-xs text-slate-400">VaultShield (Security)</span>
+        </div>
+      </div>
+
+      <p class="mt-4 text-xs text-slate-500">
+        The 3D space maps semantic similarity: tickets clustered close together share the same root issue. Drag to rotate, scroll to zoom. Larger points indicate Severity 1 (Sev1) issues.
+      </p>
+    </div>
+
+    <div data-tab-content="topics" class="hidden flex-1 min-h-0 animate-fade-in">
+        <div class="relative h-[400px] w-full rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+            <canvas data-hc-topic-chart></canvas>
+        </div>
+        <p class="mt-4 text-xs text-slate-500">
+          This chart shows the absolute distribution of the top 10 root categories found in the ticket corpus. It helps triage teams identify the areas contributing the highest volume to the support queue.
+        </p>
+    </div>
+
+    <div data-tab-content="triage" class="hidden pt-2 animate-fade-in">
+        <div class="grid gap-6 md:grid-cols-3">
+            
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+                <p class="text-slate-400 text-[0.7rem] uppercase font-bold mb-2">Total Volume</p>
+                <p id="hc-stat-total" class="text-4xl font-mono text-white font-bold">--</p>
+                <p class="text-xs text-slate-500 mt-2">Tickets analyzed in batch</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+                <p class="text-slate-400 text-[0.7rem] uppercase font-bold mb-2">Noise Fraction</p>
+                <p id="hc-stat-noise" class="text-4xl font-mono text-indigo-400 font-bold">--%</p>
+                <p class="text-xs text-slate-500 mt-2">Unclassifiable outliers that missed clusters</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+                <p class="text-slate-400 text-[0.7rem] uppercase font-bold mb-2">Cluster Density</p>
+                <p id="hc-stat-clusters" class="text-4xl font-mono text-emerald-400 font-bold">--</p>
+                <p class="text-xs text-slate-500 mt-2">Distinct semantic topics found by HDBSCAN</p>
+            </div>
+
+            <div class="col-span-full rounded-2xl border border-slate-800 bg-slate-950/50 p-6 h-[200px] relative">
+                 <p class="text-slate-400 text-[0.7rem] uppercase font-bold mb-2">Severity Distribution</p>
+                 <div class="absolute inset-0 top-10 p-4">
+                    <canvas data-hc-sev-chart></canvas>
+                 </div>
+            </div>
+
+        </div>
+        <p class="mt-4 text-xs text-slate-500">
+          The Triage Load panel summarizes the pipeline's effectiveness. High Cluster Density and low Noise Fraction indicate the embeddings and clustering models are working well to group related issues automatically.
+        </p>
+    </div>
+
+  </div>
+</section>
+
+==================================================
 FILE PATH: web\js\charts.js
 ==================================================
 
@@ -5570,9 +5605,12 @@ const verticalLinePlugin = {
         const { index, color, text } = lineItem;
         const meta = chart.getDatasetMeta(0);
         
+        // Safety check: ensure index is within current view
         if (index < 0 || index >= meta.data.length) return;
 
         const xPos = x.getPixelForValue(index);
+        
+        // Only draw if within chart area
         if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) return;
 
         ctx.beginPath();
@@ -5585,6 +5623,7 @@ const verticalLinePlugin = {
         const textWidth = ctx.measureText(text).width;
         const padding = 6;
 
+        // Prevent label clipping on right edge
         if (xPos + textWidth + padding > right) {
             ctx.textAlign = 'right';
             ctx.fillText(text, xPos - padding, top + 12);
@@ -5593,7 +5632,6 @@ const verticalLinePlugin = {
             ctx.fillText(text, xPos + padding, top + 12);
         }
     });
-    
     ctx.restore();
   }
 };
@@ -5610,9 +5648,9 @@ window.initGridSense = function () {
   const series = dataObj.series;
   const metrics = dataObj.summary;
 
-  const RECENT_WINDOW = 144; // 12 hours
+  // --- CONFIGURATION: 48-HOUR WINDOW ---
+  const RECENT_WINDOW = 48 * 60 * 60 * 1000; 
 
-  // 1. Global Time (UTC)
   let globalMaxTs = 0;
   if (series.length > 0) {
       series.forEach(d => {
@@ -5620,11 +5658,9 @@ window.initGridSense = function () {
           if (ts > globalMaxTs) globalMaxTs = ts;
       });
   }
-  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
+  const cutoffTime = globalMaxTs - RECENT_WINDOW;
 
-  // 2. Aggregate Data
   const subMap = {};
-
   series.forEach(d => {
     if (!subMap[d.substation_id]) {
         subMap[d.substation_id] = { 
@@ -5637,55 +5673,46 @@ window.initGridSense = function () {
     }
     const entry = subMap[d.substation_id];
     entry.data.push(d);
-    
     if (d.anomaly_score > entry.maxScore) entry.maxScore = d.anomaly_score;
   });
 
-  // 3. Determine Status
+  // Determine Fleet Status
   Object.values(subMap).forEach(sub => {
       const anyAnomaly = sub.data.some(d => d.predicted_anomaly === 1);
-      
       if (anyAnomaly) {
           const activeAnomaly = sub.data.some(d => {
               return d.predicted_anomaly === 1 && new Date(d.timestamp).getTime() > cutoffTime;
           });
-          
-          if (activeAnomaly) {
-              sub.status = 'active'; 
-          } else {
-              sub.status = 'historic'; 
-          }
+          sub.status = activeAnomaly ? 'active' : 'historic';
       } else {
           sub.status = 'clean'; 
       }
   });
 
-  // 4. Sort
+  // --- UPDATED SORTING: NUMERICAL ONLY ---
+  // Removed the "Active First" logic. Now sorts strictly by ID (GS-001, GS-002...)
   const subList = Object.values(subMap).sort((a, b) => {
       return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' });
   });
 
-  // 5. Render
   if (subList.length > 0) {
       const initialSub = subList[0];
-      renderSubstationGrid(subList, initialSub.id, globalMaxTs);
-      renderTimeseries(initialSub.data, initialSub.id, globalMaxTs);
+      renderSubstationGrid(subList, initialSub.id, globalMaxTs, cutoffTime);
+      renderTimeseries(initialSub.data, initialSub.id, globalMaxTs, cutoffTime);
       renderPseudoEmbedding(series, cutoffTime);
       updateHealthMetrics(metrics);
   }
 };
 
-function renderSubstationGrid(subList, activeId, globalMaxTs) {
+function renderSubstationGrid(subList, activeId, globalMaxTs, cutoffTime) {
     const listContainer = document.getElementById('gs-substation-list');
     if (!listContainer) return;
-    
     listContainer.innerHTML = '';
 
     subList.forEach(sub => {
         const isActive = sub.id === activeId;
         const shortId = sub.id.split('-')[1] || sub.id;
 
-        // CHANGED: Compact styling for narrower column (h-8, smaller text)
         let baseClass = "h-8 w-full rounded flex items-center justify-center cursor-pointer transition-all duration-200 border relative group";
         
         if (isActive) {
@@ -5701,10 +5728,9 @@ function renderSubstationGrid(subList, activeId, globalMaxTs) {
         const el = document.createElement('div');
         el.className = baseClass;
         el.title = `${sub.id} (${sub.region}) - ${sub.status}`;
-        
         el.onclick = () => {
-            renderSubstationGrid(subList, sub.id, globalMaxTs);
-            renderTimeseries(sub.data, sub.id, globalMaxTs);
+            renderSubstationGrid(subList, sub.id, globalMaxTs, cutoffTime);
+            renderTimeseries(sub.data, sub.id, globalMaxTs, cutoffTime);
         };
 
         let dot = '';
@@ -5721,12 +5747,11 @@ function renderSubstationGrid(subList, activeId, globalMaxTs) {
             ${dot}
             <span class="text-[0.6rem] font-mono font-bold">${shortId}</span>
         `;
-        
         listContainer.appendChild(el);
     });
 }
 
-function renderTimeseries(dataPoints, subId, globalMaxTs) {
+function renderTimeseries(dataPoints, subId, globalMaxTs, cutoffTime) {
   const canvas = document.querySelector('[data-gs-timeseries]');
   if (!canvas || !window.Chart) return;
   
@@ -5737,42 +5762,68 @@ function renderTimeseries(dataPoints, subId, globalMaxTs) {
 
   const ctx = canvas.getContext('2d');
   const windowSize = 150;
-  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
-
   let startIndex = Math.max(0, dataPoints.length - windowSize);
   let viewModeText = "Live telemetry";
 
-  let foundIndex = -1;
-  for (let i = dataPoints.length - 1; i >= 0; i--) {
-      if (dataPoints[i].predicted_anomaly === 1) {
-          foundIndex = i;
-          break;
+  // --- CLUSTERING LOGIC ---
+  const GAP_TOLERANCE = 12; 
+  const incidents = [];
+  let currentIncident = null;
+
+  dataPoints.forEach((pt, idx) => {
+      if (pt.predicted_anomaly === 1) {
+          if (!currentIncident) {
+              currentIncident = { start: idx, end: idx, maxScore: pt.anomaly_score, maxScoreIdx: idx };
+          } else {
+              if (idx - currentIncident.end <= GAP_TOLERANCE) {
+                  currentIncident.end = idx;
+                  if (pt.anomaly_score > currentIncident.maxScore) {
+                      currentIncident.maxScore = pt.anomaly_score;
+                      currentIncident.maxScoreIdx = idx;
+                  }
+              } else {
+                  incidents.push(currentIncident);
+                  currentIncident = { start: idx, end: idx, maxScore: pt.anomaly_score, maxScoreIdx: idx };
+              }
+          }
       }
+  });
+  if (currentIncident) incidents.push(currentIncident);
+
+  // --- AUTO-CENTER LOGIC ---
+  let targetIncident = null;
+  if (incidents.length > 0) {
+      targetIncident = incidents[incidents.length - 1]; // Last one
   }
 
-  if (foundIndex !== -1) {
-      const anomalyTime = new Date(dataPoints[foundIndex].timestamp).getTime();
-      if (anomalyTime > cutoffTime) {
-          const centerOffset = Math.floor(windowSize / 2);
-          startIndex = Math.max(0, foundIndex - centerOffset);
-          if (startIndex + windowSize > dataPoints.length) {
-              startIndex = Math.max(0, dataPoints.length - windowSize);
-          }
-          const eventTime = new Date(dataPoints[foundIndex].timestamp);
-          const dateStr = eventTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-          const timeStr = eventTime.toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
-          viewModeText = `Incident review: <span class="text-white">${dateStr} ${timeStr}</span>`;
+  if (targetIncident) {
+      const centerIndex = targetIncident.maxScoreIdx; 
+      const centerOffset = Math.floor(windowSize / 2);
+      startIndex = Math.max(0, centerIndex - centerOffset);
+      
+      if (startIndex + windowSize > dataPoints.length) {
+          startIndex = Math.max(0, dataPoints.length - windowSize);
       }
+
+      const eventTime = new Date(dataPoints[centerIndex].timestamp);
+      const isRecent = eventTime.getTime() > cutoffTime;
+      const label = isRecent ? "Active Incident" : "Historic Incident";
+      
+      const dateStr = eventTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      const timeStr = eventTime.toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
+      viewModeText = `${label} review: <span class="text-white">${dateStr} ${timeStr}</span>`;
   }
 
   const slice = dataPoints.slice(startIndex, startIndex + windowSize); 
+  
+  // Date Labels
   const labels = slice.map(d => {
     const date = new Date(d.timestamp);
-    const month = date.toLocaleString('en-US', { month: 'short' });
-    const day = date.getDate();
+    const mon = date.toLocaleString('en-US', { month: 'short' });
+    const day = String(date.getDate()).padStart(2, '0');
     const hour = String(date.getHours()).padStart(2, '0');
     const min = String(date.getMinutes()).padStart(2, '0');
-    return `${month} ${day} ${hour}:${min}`;
+    return `${mon} ${day}, ${hour}:${min}`;
   });
   
   const scores = slice.map(d => d.anomaly_score || 0);
@@ -5795,23 +5846,18 @@ function renderTimeseries(dataPoints, subId, globalMaxTs) {
   };
 
   const lineMarkers = [];
-  let isAnomalyActive = false;
-
-  slice.forEach((point, index) => {
-      if (point.predicted_anomaly === 1) {
-          if (!isAnomalyActive) {
-              const pointTs = new Date(point.timestamp).getTime();
-              const isRecent = pointTs > cutoffTime;
-              
-              lineMarkers.push({
-                  index: index,
-                  color: isRecent ? '#ef4444' : '#64748b',
-                  text: isRecent ? 'ANOMALY DETECTED' : 'HISTORIC INCIDENT'
-              });
-              isAnomalyActive = true;
-          }
-      } else {
-          isAnomalyActive = false;
+  incidents.forEach(inc => {
+      const relativeIdx = inc.maxScoreIdx - startIndex;
+      if (relativeIdx >= 0 && relativeIdx < windowSize) {
+          const point = dataPoints[inc.maxScoreIdx];
+          const pointTs = new Date(point.timestamp).getTime();
+          const isRecent = pointTs > cutoffTime;
+          
+          lineMarkers.push({
+              index: relativeIdx, 
+              color: isRecent ? '#ef4444' : '#64748b',
+              text: isRecent ? 'ANOMALY DETECTED' : 'HISTORIC INCIDENT'
+          });
       }
   });
 
@@ -5830,13 +5876,13 @@ function renderTimeseries(dataPoints, subId, globalMaxTs) {
           borderWidth: 2,
           segment: { borderColor: getSegmentColor },
           backgroundColor: (context) => {
-            const chart = context.chart;
-            const {ctx, chartArea} = chart;
-            if (!chartArea) return null;
-            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-            gradient.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
-            gradient.addColorStop(1, 'rgba(56, 189, 248, 0.2)');
-            return gradient;
+             const chart = context.chart;
+             const {ctx, chartArea} = chart;
+             if (!chartArea) return null;
+             const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+             gradient.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
+             gradient.addColorStop(1, 'rgba(56, 189, 248, 0.2)');
+             return gradient;
           },
           fill: true,
           pointRadius: 0,
@@ -5859,13 +5905,19 @@ function renderTimeseries(dataPoints, subId, globalMaxTs) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { intersect: false, mode: 'index' },
-      plugins: { 
-          legend: { display: false },
-          verticalLine: { lines: lineMarkers }
-      },
+      plugins: { legend: { display: false }, verticalLine: { lines: lineMarkers } },
       animation: { duration: 0 },
       scales: {
-        x: { display: false },
+        x: { 
+            display: true, 
+            grid: { display: false }, 
+            ticks: { 
+                color: '#64748b', 
+                font: { size: 10 },
+                maxTicksLimit: 6, 
+                maxRotation: 0
+            }
+        },
         y: { 
           display: true, 
           min: 0, 
@@ -5890,20 +5942,17 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
   const nominals = [];
 
   allSeriesData.forEach(d => {
+      const pointTs = new Date(d.timestamp).getTime();
       const date = new Date(d.timestamp);
       const dateStr = date.toLocaleString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          hour: '2-digit', 
-          minute: '2-digit', 
-          hour12: false
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
       });
 
       const point = {
           ...d, 
           score: d.anomaly_score || 0,
           isAnom: d.predicted_anomaly === 1,
-          isRecent: new Date(d.timestamp).getTime() > cutoffTime,
+          isRecent: pointTs > cutoffTime,
           fullLabel: `[${d.substation_id}] ${dateStr}`
       };
       if (point.isAnom) anomalies.push(point);
@@ -5919,23 +5968,16 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
 
   const finalData = [...sampledNominals, ...anomalies].map(point => {
       const date = new Date(point.timestamp);
-      
       const hours = date.getHours() % 12; 
       const mins = date.getMinutes();
       const totalMinutes = (hours * 60) + mins;
-      
       const angle = (totalMinutes / 720) * (2 * Math.PI);
       
-      let r;
-      if (point.isAnom) {
-          r = 1.0 + (point.score * 4.0); 
-      } else {
-          r = Math.random() * 0.8; 
-      }
+      let r = point.isAnom ? (1.0 + point.score * 4.0) : (Math.random() * 0.8);
 
       return {
           x: Math.sin(angle) * r,
-          y: Math.cos(angle) * r, // FIX: Positive Cos to put 12:00 at Top and ensure clockwise rotation
+          y: Math.cos(angle) * r, 
           isAnom: point.isAnom,
           isRecent: point.isRecent,
           fullLabel: point.fullLabel,
@@ -5953,25 +5995,9 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
     type: 'scatter',
     data: {
       datasets: [
-        { 
-            label: 'Nominal', 
-            data: normalSet, 
-            backgroundColor: '#38bdf8', 
-            pointRadius: 2 
-        },
-        { 
-            label: 'Active Anomaly', 
-            data: activeSet, 
-            backgroundColor: '#ef4444', 
-            pointRadius: 5,
-            pointHoverRadius: 7
-        },
-        { 
-            label: 'Historic Anomaly', 
-            data: historicSet, 
-            backgroundColor: '#64748b', 
-            pointRadius: 3 
-        }
+        { label: 'Nominal', data: normalSet, backgroundColor: '#38bdf8', pointRadius: 2 },
+        { label: 'Active Anomaly', data: activeSet, backgroundColor: '#ef4444', pointRadius: 5, pointHoverRadius: 7 },
+        { label: 'Historic Anomaly', data: historicSet, backgroundColor: '#64748b', pointRadius: 3 }
       ]
     },
     options: {
@@ -5981,9 +6007,7 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
       plugins: { 
           legend: { display: true, labels: { color: '#94a3b8' } },
           tooltip: {
-            callbacks: {
-                label: (ctx) => `${ctx.raw.fullLabel} (${ctx.raw.statusLabel})`
-            }
+            callbacks: { label: (ctx) => `${ctx.raw.fullLabel} (${ctx.raw.statusLabel})` }
           }
       }
     }
@@ -5991,15 +6015,12 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
 }
 
 function updateHealthMetrics(metrics) {
-  // Helper to determine status color based on thresholds
-  // mode: 'higher_is_better' (Precision/Recall) or 'lower_is_better' (Anomaly Rate)
   const getStatus = (val, mode) => {
     if (mode === 'higher_is_better') {
-      if (val >= 0.80) return { color: 'text-emerald-400', dot: 'bg-emerald-500', shadow: 'shadow-emerald-500/50' }; // Good
-      if (val >= 0.50) return { color: 'text-amber-400', dot: 'bg-amber-500', shadow: 'shadow-amber-500/50' };     // Warning
-      return { color: 'text-red-400', dot: 'bg-red-500', shadow: 'shadow-red-500/50' };                             // Critical
+      if (val >= 0.80) return { color: 'text-emerald-400', dot: 'bg-emerald-500', shadow: 'shadow-emerald-500/50' };
+      if (val >= 0.50) return { color: 'text-amber-400', dot: 'bg-amber-500', shadow: 'shadow-amber-500/50' };
+      return { color: 'text-red-400', dot: 'bg-red-500', shadow: 'shadow-red-500/50' };
     } else {
-      // For Anomaly Rate: <5% is distinct/good, 5-15% is noisy, >15% is chaotic
       if (val <= 0.05) return { color: 'text-emerald-400', dot: 'bg-emerald-500', shadow: 'shadow-emerald-500/50' };
       if (val <= 0.15) return { color: 'text-amber-400', dot: 'bg-amber-500', shadow: 'shadow-amber-500/50' };
       return { color: 'text-red-400', dot: 'bg-red-500', shadow: 'shadow-red-500/50' };
@@ -6010,16 +6031,11 @@ function updateHealthMetrics(metrics) {
     const status = getStatus(val, mode);
     const valueEl = document.getElementById(`gs-metric-${metricKey}`);
     const dotEl = document.getElementById(`gs-dot-${metricKey}`);
-    
-    // Update Value Text
     if (valueEl) {
       valueEl.innerText = (val * 100).toFixed(1) + '%';
       valueEl.className = `text-3xl font-bold font-mono transition-colors duration-500 ${status.color}`;
     }
-
-    // Update Traffic Light Dot
     if (dotEl) {
-      // maintain base layout classes, update color/shadow
       dotEl.className = `h-2.5 w-2.5 rounded-full transition-all duration-500 ${status.dot} shadow-[0_0_8px] ${status.shadow}`;
     }
   };
@@ -6030,12 +6046,194 @@ function updateHealthMetrics(metrics) {
 }
 
 ==================================================
+FILE PATH: web\js\heliocloud_card.js
+==================================================
+
+/**
+ * web/js/heliocloud_card.js
+ * Visualizes embedding data using Three.js and Chart.js
+ */
+
+let hcScene, hcCamera, hcRenderer, hcPoints;
+let hcAnimationFrameId;
+let hcCharts = [];
+
+window.initHelioCloud = function () {
+    console.log('[HelioCloud] Initializing...');
+
+    if (!window.TICKET_POINTS || !window.TICKET_SUMMARY) {
+        console.warn('[HelioCloud] Artifacts not found. Run the python pipeline first.');
+        return;
+    }
+
+    renderCharts(window.TICKET_SUMMARY);
+
+    // Initialize 3D View (Delayed slightly to ensure container is ready)
+    setTimeout(() => {
+        initThreeJS(window.TICKET_POINTS.points);
+    }, 100);
+};
+
+/* --- STATS & CHARTS --- */
+
+function renderCharts(summary) {
+    hcCharts.forEach(c => c.destroy());
+    hcCharts = [];
+
+    // -- Topic/Category Chart --
+    const catCanvas = document.querySelector('[data-hc-topic-chart]');
+    if (catCanvas) {
+        const cats = Object.entries(summary.categoryCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
+
+        hcCharts.push(new Chart(catCanvas, {
+            type: 'bar',
+            data: {
+                labels: cats.map(c => c[0].replace(/_/g, ' ')),
+                datasets: [{
+                    label: 'Tickets',
+                    data: cats.map(c => c[1]),
+                    backgroundColor: '#6366f1',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }
+                }
+            }
+        }));
+    }
+
+    // -- Severity Chart --
+    const sevCanvas = document.querySelector('[data-hc-sev-chart]');
+    if (sevCanvas) {
+        const order = ['Sev1', 'Sev2', 'Sev3', 'Sev4'];
+        const data = order.map(k => (summary.severityDistribution[k] || 0) * 100);
+
+        hcCharts.push(new Chart(sevCanvas, {
+            type: 'bar',
+            data: {
+                labels: order,
+                datasets: [{
+                    data: data,
+                    backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6'],
+                    barThickness: 20,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false, max: 100 },
+                    y: { ticks: { color: '#94a3b8', font: { weight: 'bold' } }, grid: { display: false } }
+                }
+            }
+        }));
+    }
+}
+
+/* --- THREE.JS VISUALIZATION --- */
+
+function initThreeJS(pointsData) {
+    const container = document.getElementById('hc-3d-container');
+    if (!container) return;
+
+    if (hcRenderer) {
+        container.innerHTML = ''; 
+        cancelAnimationFrame(hcAnimationFrameId);
+    }
+    
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // SCENE
+    hcScene = new THREE.Scene();
+    hcScene.background = new THREE.Color(0x020617); 
+    hcScene.fog = new THREE.FogExp2(0x020617, 0.15);
+
+    // CAMERA
+    hcCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
+    hcCamera.position.z = 5;
+
+    // RENDERER
+    hcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    hcRenderer.setSize(width, height);
+    hcRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(hcRenderer.domElement);
+
+    // GEOMETRY
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const colors = [];
+    const sizes = [];
+
+    const colorMap = {
+        'HelioCloud': new THREE.Color('#6366f1'), 
+        'GridSense': new THREE.Color('#10b981'),  
+        'LineaOps': new THREE.Color('#f59e0b'),   
+        'VaultShield': new THREE.Color('#f43f5e') 
+    };
+    const defaultColor = new THREE.Color('#64748b');
+
+    pointsData.forEach(p => {
+        positions.push(p.x, p.y, p.z);
+        const c = colorMap[p.product] || defaultColor;
+        colors.push(c.r, c.g, c.b);
+        sizes.push(p.isP1 ? 0.15 : 0.08);
+    });
+
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+        size: 0.1,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8
+    });
+
+    hcPoints = new THREE.Points(geometry, material);
+    hcScene.add(hcPoints);
+
+    // ANIMATION
+    let targetRotationX = 0, targetRotationY = 0;
+    
+    const animate = () => {
+        hcAnimationFrameId = requestAnimationFrame(animate);
+        targetRotationY += 0.002;
+        hcPoints.rotation.y = targetRotationY;
+        hcRenderer.render(hcScene, hcCamera);
+    };
+
+    animate();
+    
+    const onResize = () => {
+        if(!container) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        hcCamera.aspect = w / h;
+        hcCamera.updateProjectionMatrix();
+        hcRenderer.setSize(w, h);
+    };
+    window.addEventListener('resize', onResize);
+}
+
+==================================================
 FILE PATH: web\js\load_cards.js
 ==================================================
 
 /**
  * web/js/load_cards.js
- * Loads HTML components and initializes their scripts/tabs.
  */
 
 export async function loadAllCards() {
@@ -6063,17 +6261,20 @@ export async function loadAllCards() {
       container.appendChild(wrapper);
       console.log(`[Cards] Injected HTML for ${name}`);
       
-      // 1. Initialize Tabs (Critical Step)
+      // 1. Initialize Tabs
       if (window.activateTabs) {
          window.activateTabs(wrapper);
-      } else {
-         console.error("[Cards] window.activateTabs is missing! Check tabs.js");
       }
 
-      // 2. Initialize Component Logic (Chart drawing)
+      // 2. Initialize Component Logic
+      // --- GridSense ---
       if (name === 'gridsense' && window.initGridSense) {
-        // Short timeout ensures DOM is fully painted before Chart.js tries to grab context
         setTimeout(() => window.initGridSense(), 50);
+      }
+
+      // --- HelioCloud (THIS WAS MISSING) ---
+      if (name === 'heliocloud' && window.initHelioCloud) {
+        setTimeout(() => window.initHelioCloud(), 50);
       }
       
     } catch (err) {
@@ -6081,7 +6282,7 @@ export async function loadAllCards() {
     }
   }
 
-  const components = ["gridsense"];
+  const components = ["gridsense", "heliocloud"];
   for (const c of components) {
     await loadCard(c);
   }

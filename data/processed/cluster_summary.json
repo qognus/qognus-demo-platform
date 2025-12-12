@@ -1,0 +1,495 @@
+{
+  "0": {
+    "size": 65,
+    "topProduct": "GridSense",
+    "topProductFraction": 0.4307692307692308,
+    "topCategory": "integration",
+    "topCategoryFraction": 0.676923076923077,
+    "topTerms": [
+      "sso",
+      "sso integration",
+      "integration",
+      "integration failure",
+      "logouts",
+      "authentication",
+      "gridsense",
+      "integration error"
+    ]
+  },
+  "1": {
+    "size": 35,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "api_errors",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "api",
+      "limit",
+      "vaultshield api",
+      "rate",
+      "vaultshield",
+      "payload",
+      "rate limit",
+      "size"
+    ]
+  },
+  "2": {
+    "size": 51,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "api_errors",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "api",
+      "vaultshield api",
+      "vaultshield",
+      "errors",
+      "internal server",
+      "internal",
+      "server",
+      "authenticate"
+    ]
+  },
+  "3": {
+    "size": 52,
+    "topProduct": "LineaOps",
+    "topProductFraction": 1.0,
+    "topCategory": "latency",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "latency",
+      "lineaops",
+      "spikes",
+      "manufacturing",
+      "trace",
+      "roundtrip",
+      "delays",
+      "p95"
+    ]
+  },
+  "4": {
+    "size": 53,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "billing",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "billing",
+      "heliocloud",
+      "subscription",
+      "account",
+      "charge",
+      "charges",
+      "credit",
+      "invoice"
+    ]
+  },
+  "5": {
+    "size": 53,
+    "topProduct": "LineaOps",
+    "topProductFraction": 1.0,
+    "topCategory": "data_quality",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "lineaops",
+      "robot",
+      "data",
+      "manufacturing",
+      "cell",
+      "line",
+      "cardinality",
+      "drift"
+    ]
+  },
+  "6": {
+    "size": 103,
+    "topProduct": "LineaOps",
+    "topProductFraction": 1.0,
+    "topCategory": "telemetry_drop",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "telemetry",
+      "lineaops",
+      "telemetry data",
+      "data",
+      "manufacturing",
+      "sensor",
+      "conveyor",
+      "lineaops telemetry"
+    ]
+  },
+  "7": {
+    "size": 39,
+    "topProduct": "GridSense",
+    "topProductFraction": 0.5641025641025641,
+    "topCategory": "integration",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "siem",
+      "connector",
+      "siem connector",
+      "connector failure",
+      "gridsense",
+      "failure",
+      "security",
+      "lineaops"
+    ]
+  },
+  "8": {
+    "size": 39,
+    "topProduct": "LineaOps",
+    "topProductFraction": 0.5128205128205128,
+    "topCategory": "deployment_failures",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "canary",
+      "upgrade",
+      "deployment",
+      "agent",
+      "canary deployment",
+      "agent upgrade",
+      "failed",
+      "upgrade gridsense"
+    ]
+  },
+  "9": {
+    "size": 100,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "authorization",
+    "topCategoryFraction": 0.78,
+    "topTerms": [
+      "vaultshield",
+      "authorization",
+      "access",
+      "role",
+      "vaultshield authorization",
+      "user",
+      "users",
+      "security"
+    ]
+  },
+  "10": {
+    "size": 31,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "security_alerts",
+    "topCategoryFraction": 0.5161290322580645,
+    "topTerms": [
+      "mfa",
+      "vaultshield",
+      "bypass",
+      "factor",
+      "authentication",
+      "factor authentication",
+      "multi factor",
+      "multi"
+    ]
+  },
+  "11": {
+    "size": 138,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "data_quality",
+    "topCategoryFraction": 0.4492753623188406,
+    "topTerms": [
+      "vaultshield",
+      "security",
+      "login",
+      "attempts",
+      "detected",
+      "sso",
+      "drift",
+      "anomalous"
+    ]
+  },
+  "12": {
+    "size": 82,
+    "topProduct": "VaultShield",
+    "topProductFraction": 1.0,
+    "topCategory": "dashboard_issues",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "dashboard",
+      "vaultshield dashboard",
+      "vaultshield",
+      "security",
+      "rendering",
+      "widget",
+      "displaying",
+      "security analytics"
+    ]
+  },
+  "13": {
+    "size": 51,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "integration",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "heliocloud",
+      "protocol",
+      "scada protocol",
+      "integration",
+      "webhook",
+      "scada",
+      "heliocloud integration",
+      "driver"
+    ]
+  },
+  "14": {
+    "size": 48,
+    "topProduct": "GridSense",
+    "topProductFraction": 1.0,
+    "topCategory": "latency",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "latency",
+      "gridsense",
+      "edge",
+      "high",
+      "edge devices",
+      "high latency",
+      "devices",
+      "roundtrip"
+    ]
+  },
+  "15": {
+    "size": 70,
+    "topProduct": "GridSense",
+    "topProductFraction": 0.8285714285714286,
+    "topCategory": "deployment_failures",
+    "topCategoryFraction": 0.6285714285714286,
+    "topTerms": [
+      "gridsense",
+      "deployment",
+      "webhook",
+      "rollout",
+      "canary",
+      "failure",
+      "webhook delivery",
+      "delivery"
+    ]
+  },
+  "16": {
+    "size": 86,
+    "topProduct": "GridSense",
+    "topProductFraction": 1.0,
+    "topCategory": "firmware",
+    "topCategoryFraction": 0.8255813953488372,
+    "topTerms": [
+      "firmware",
+      "gridsense",
+      "gridsense firmware",
+      "update",
+      "firmware update",
+      "checksum",
+      "version",
+      "monitoring"
+    ]
+  },
+  "17": {
+    "size": 83,
+    "topProduct": "GridSense",
+    "topProductFraction": 1.0,
+    "topCategory": "telemetry_drop",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "telemetry",
+      "gridsense",
+      "telemetry data",
+      "sensor",
+      "data",
+      "intermittent",
+      "loss",
+      "sensors"
+    ]
+  },
+  "18": {
+    "size": 73,
+    "topProduct": "GridSense",
+    "topProductFraction": 1.0,
+    "topCategory": "data_quality",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "gridsense",
+      "data",
+      "energy",
+      "sensor",
+      "monitoring",
+      "sensors",
+      "utility",
+      "substations"
+    ]
+  },
+  "19": {
+    "size": 74,
+    "topProduct": "LineaOps",
+    "topProductFraction": 1.0,
+    "topCategory": "firmware",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "firmware",
+      "lineaops",
+      "lineaops firmware",
+      "version",
+      "update",
+      "firmware version",
+      "line",
+      "firmware update"
+    ]
+  },
+  "20": {
+    "size": 57,
+    "topProduct": "LineaOps",
+    "topProductFraction": 1.0,
+    "topCategory": "deployment_failures",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "lineaops",
+      "deployment",
+      "update",
+      "rollout",
+      "process",
+      "upgrade",
+      "plc",
+      "manufacturing"
+    ]
+  },
+  "21": {
+    "size": 38,
+    "topProduct": "GridSense",
+    "topProductFraction": 0.5526315789473685,
+    "topCategory": "integration",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "plc",
+      "driver",
+      "plc driver",
+      "drivers",
+      "plc drivers",
+      "fault",
+      "driver fault",
+      "intermittent"
+    ]
+  },
+  "22": {
+    "size": 44,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "api_errors",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "api",
+      "heliocloud api",
+      "heliocloud",
+      "payload",
+      "error",
+      "internal server",
+      "internal",
+      "errors"
+    ]
+  },
+  "23": {
+    "size": 61,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 0.9836065573770492,
+    "topCategory": "latency",
+    "topCategoryFraction": 0.7868852459016393,
+    "topTerms": [
+      "heliocloud",
+      "latency",
+      "trace",
+      "sampling",
+      "trace sampling",
+      "observability",
+      "p95",
+      "spikes"
+    ]
+  },
+  "24": {
+    "size": 57,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "authentication",
+    "topCategoryFraction": 0.8421052631578947,
+    "topTerms": [
+      "heliocloud",
+      "authentication",
+      "sso",
+      "token",
+      "validation",
+      "observability",
+      "access",
+      "heliocloud authentication"
+    ]
+  },
+  "25": {
+    "size": 61,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "authorization",
+    "topCategoryFraction": 0.7868852459016393,
+    "topTerms": [
+      "heliocloud",
+      "authorization",
+      "access",
+      "heliocloud authorization",
+      "authorization failure",
+      "observability",
+      "scope",
+      "permissions"
+    ]
+  },
+  "26": {
+    "size": 30,
+    "topProduct": "GridSense",
+    "topProductFraction": 0.5333333333333333,
+    "topCategory": "latency",
+    "topCategoryFraction": 1.0,
+    "topTerms": [
+      "rendering",
+      "slow",
+      "dashboard",
+      "dashboard rendering",
+      "rendering significantly",
+      "significantly",
+      "significantly slow",
+      "heliocloud"
+    ]
+  },
+  "27": {
+    "size": 72,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "data_quality",
+    "topCategoryFraction": 0.5416666666666666,
+    "topTerms": [
+      "heliocloud",
+      "metrics",
+      "log",
+      "dashboard",
+      "observability",
+      "data",
+      "logs",
+      "heliocloud dashboard"
+    ]
+  },
+  "28": {
+    "size": 55,
+    "topProduct": "HelioCloud",
+    "topProductFraction": 1.0,
+    "topCategory": "dashboard_issues",
+    "topCategoryFraction": 0.8,
+    "topTerms": [
+      "dashboard",
+      "heliocloud",
+      "heliocloud dashboard",
+      "metrics",
+      "widgets",
+      "charts",
+      "data",
+      "real"
+    ]
+  }
+}

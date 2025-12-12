@@ -1,0 +1,262 @@
+{
+  "numTickets": 2000,
+  "avgSilhouette": 0.6914048790931702,
+  "noiseFraction": 0.0995,
+  "numClusters": 29,
+  "largestClusterSize": 138,
+  "clusterSizes": {
+    "-1": 199,
+    "0": 65,
+    "1": 35,
+    "2": 51,
+    "3": 52,
+    "4": 53,
+    "5": 53,
+    "6": 103,
+    "7": 39,
+    "8": 39,
+    "9": 100,
+    "10": 31,
+    "11": 138,
+    "12": 82,
+    "13": 51,
+    "14": 48,
+    "15": 70,
+    "16": 86,
+    "17": 83,
+    "18": 73,
+    "19": 74,
+    "20": 57,
+    "21": 38,
+    "22": 44,
+    "23": 61,
+    "24": 57,
+    "25": 61,
+    "26": 30,
+    "27": 72,
+    "28": 55
+  },
+  "severityDistribution": {
+    "Sev3": 0.3935,
+    "Sev4": 0.4665,
+    "Sev2": 0.105,
+    "Sev1": 0.035
+  },
+  "productPurityByCluster": {
+    "-1": {
+      "VaultShield": 0.3165829145728643,
+      "LineaOps": 0.32663316582914576,
+      "GridSense": 0.08040201005025126,
+      "HelioCloud": 0.27638190954773867
+    },
+    "0": {
+      "GridSense": 0.4307692307692308,
+      "LineaOps": 0.24615384615384617,
+      "VaultShield": 0.3230769230769231
+    },
+    "1": {
+      "VaultShield": 1.0
+    },
+    "2": {
+      "VaultShield": 1.0
+    },
+    "3": {
+      "LineaOps": 1.0
+    },
+    "4": {
+      "HelioCloud": 1.0
+    },
+    "5": {
+      "LineaOps": 1.0
+    },
+    "6": {
+      "LineaOps": 1.0
+    },
+    "7": {
+      "GridSense": 0.5641025641025641,
+      "LineaOps": 0.4358974358974359
+    },
+    "8": {
+      "LineaOps": 0.5128205128205128,
+      "GridSense": 0.48717948717948717
+    },
+    "9": {
+      "VaultShield": 1.0
+    },
+    "10": {
+      "VaultShield": 1.0
+    },
+    "11": {
+      "VaultShield": 1.0
+    },
+    "12": {
+      "VaultShield": 1.0
+    },
+    "13": {
+      "HelioCloud": 1.0
+    },
+    "14": {
+      "GridSense": 1.0
+    },
+    "15": {
+      "GridSense": 0.8285714285714286,
+      "LineaOps": 0.17142857142857143
+    },
+    "16": {
+      "GridSense": 1.0
+    },
+    "17": {
+      "GridSense": 1.0
+    },
+    "18": {
+      "GridSense": 1.0
+    },
+    "19": {
+      "LineaOps": 1.0
+    },
+    "20": {
+      "LineaOps": 1.0
+    },
+    "21": {
+      "LineaOps": 0.4473684210526316,
+      "GridSense": 0.5526315789473685
+    },
+    "22": {
+      "HelioCloud": 1.0
+    },
+    "23": {
+      "HelioCloud": 0.9836065573770492,
+      "GridSense": 0.01639344262295082
+    },
+    "24": {
+      "HelioCloud": 1.0
+    },
+    "25": {
+      "HelioCloud": 1.0
+    },
+    "26": {
+      "GridSense": 0.5333333333333333,
+      "HelioCloud": 0.4666666666666667
+    },
+    "27": {
+      "HelioCloud": 1.0
+    },
+    "28": {
+      "HelioCloud": 1.0
+    }
+  },
+  "categoryPurityByCluster": {
+    "-1": {
+      "data_quality": 0.22613065326633167,
+      "integration": 0.16080402010050251,
+      "security_alerts": 0.10552763819095477,
+      "authentication": 0.11557788944723618,
+      "scaling": 0.23618090452261306,
+      "latency": 0.11557788944723618,
+      "observability": 0.04020100502512563
+    },
+    "0": {
+      "integration": 0.676923076923077,
+      "authentication": 0.3230769230769231
+    },
+    "1": {
+      "api_errors": 1.0
+    },
+    "2": {
+      "api_errors": 1.0
+    },
+    "3": {
+      "latency": 1.0
+    },
+    "4": {
+      "billing": 1.0
+    },
+    "5": {
+      "data_quality": 1.0
+    },
+    "6": {
+      "telemetry_drop": 1.0
+    },
+    "7": {
+      "integration": 1.0
+    },
+    "8": {
+      "deployment_failures": 1.0
+    },
+    "9": {
+      "authorization": 0.78,
+      "authentication": 0.22
+    },
+    "10": {
+      "security_alerts": 0.5161290322580645,
+      "authentication": 0.4838709677419355
+    },
+    "11": {
+      "security_alerts": 0.35507246376811596,
+      "data_quality": 0.4492753623188406,
+      "authentication": 0.15942028985507245,
+      "authorization": 0.021739130434782608,
+      "api_errors": 0.014492753623188406
+    },
+    "12": {
+      "dashboard_issues": 1.0
+    },
+    "13": {
+      "integration": 1.0
+    },
+    "14": {
+      "latency": 1.0
+    },
+    "15": {
+      "deployment_failures": 0.6285714285714286,
+      "integration": 0.37142857142857144
+    },
+    "16": {
+      "firmware": 0.8255813953488372,
+      "deployment_failures": 0.1744186046511628
+    },
+    "17": {
+      "telemetry_drop": 1.0
+    },
+    "18": {
+      "data_quality": 1.0
+    },
+    "19": {
+      "firmware": 1.0
+    },
+    "20": {
+      "deployment_failures": 1.0
+    },
+    "21": {
+      "integration": 1.0
+    },
+    "22": {
+      "api_errors": 1.0
+    },
+    "23": {
+      "latency": 0.7868852459016393,
+      "observability": 0.21311475409836064
+    },
+    "24": {
+      "authentication": 0.8421052631578947,
+      "integration": 0.15789473684210525
+    },
+    "25": {
+      "authorization": 0.7868852459016393,
+      "api_errors": 0.21311475409836064
+    },
+    "26": {
+      "latency": 1.0
+    },
+    "27": {
+      "dashboard_issues": 0.16666666666666666,
+      "observability": 0.2916666666666667,
+      "data_quality": 0.5416666666666666
+    },
+    "28": {
+      "dashboard_issues": 0.8,
+      "observability": 0.18181818181818182,
+      "data_quality": 0.01818181818181818
+    }
+  }
+}

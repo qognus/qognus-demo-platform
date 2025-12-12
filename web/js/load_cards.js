@@ -1,6 +1,5 @@
 /**
  * web/js/load_cards.js
- * Loads HTML components and initializes their scripts/tabs.
  */
 
 export async function loadAllCards() {
@@ -28,17 +27,20 @@ export async function loadAllCards() {
       container.appendChild(wrapper);
       console.log(`[Cards] Injected HTML for ${name}`);
       
-      // 1. Initialize Tabs (Critical Step)
+      // 1. Initialize Tabs
       if (window.activateTabs) {
          window.activateTabs(wrapper);
-      } else {
-         console.error("[Cards] window.activateTabs is missing! Check tabs.js");
       }
 
-      // 2. Initialize Component Logic (Chart drawing)
+      // 2. Initialize Component Logic
+      // --- GridSense ---
       if (name === 'gridsense' && window.initGridSense) {
-        // Short timeout ensures DOM is fully painted before Chart.js tries to grab context
         setTimeout(() => window.initGridSense(), 50);
+      }
+
+      // --- HelioCloud (THIS WAS MISSING) ---
+      if (name === 'heliocloud' && window.initHelioCloud) {
+        setTimeout(() => window.initHelioCloud(), 50);
       }
       
     } catch (err) {
@@ -46,7 +48,7 @@ export async function loadAllCards() {
     }
   }
 
-  const components = ["gridsense"];
+  const components = ["gridsense", "heliocloud"];
   for (const c of components) {
     await loadCard(c);
   }
