@@ -13,9 +13,9 @@ Improvements over basic version:
    - Voltage drops (sag) are proportional to Load squared (I^2*R losses).
    - Oil Temperature follows a first-order differential equation (thermal lag).
 3. Realistic Anomalies:
-   - "sensor_freeze": Values stick to a constant.
-   - "calibration_drift": Gradual linear divergence.
-   - "voltage_sag": Sudden drop due to reactive power events.
+   - "sensor_freeze": Values stick to a constant (0.0).
+   - "thermal_runaway": Rapid linear climb (+40C).
+   - "voltage_collapse": Severe drop (0.7x) due to reactive power events.
 
 Output:
 - data/raw/gridsense_timeseries.parquet
@@ -196,7 +196,7 @@ def generate_substation_data(
 
 def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     """
-    Injects specific, realistic fault signatures.
+    Injects specific, severe realistic fault signatures.
     Uses .iloc to avoid off-by-one errors with inclusive slicing.
     """
     df = df.copy()
@@ -210,53 +210,49 @@ def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame
     idx_anom = df.columns.get_loc("is_anomaly")
     idx_type = df.columns.get_loc("anomaly_type")
 
-    # 1. SENSOR FREEZE (Data flatlines)
-    if rng.random() < 0.3:
+    # 1. SENSOR FREEZE (Flatline at 0.0 for obvious fault)
+    if rng.random() < 0.4:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
         duration = rng.integers(12, 48) # 1-4 hours
         end = min(start + duration, n_points)
         
-        # Use .iloc (exclusive end)
         if end > start:
-            # Freeze Load and Current at the start value
-            freeze_load = df.iloc[start, idx_load]
-            freeze_curr = df.iloc[start, idx_curr]
-            
-            df.iloc[start:end, idx_load] = freeze_load
-            df.iloc[start:end, idx_curr] = freeze_curr
+            # Flatline at 0
+            df.iloc[start:end, idx_load] = 0.0
+            df.iloc[start:end, idx_curr] = 0.0
             
             # Mark labels
             df.iloc[start:end, idx_anom] = 1
-            df.iloc[start:end, idx_type] = "sensor_freeze"
+            df.iloc[start:end, idx_type] = "sensor_failure"
 
-    # 2. THERMAL RUNAWAY (Cooling failure)
-    if rng.random() < 0.3:
+    # 2. THERMAL RUNAWAY (Cooling failure, massive climb)
+    if rng.random() < 0.4:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
         duration = rng.integers(24, 72) # 2-6 hours
         end = min(start + duration, n_points)
         
         if end > start:
-            # Add a linear ramp to temperature
-            # shape matches (end - start)
-            ramp = np.linspace(0, 15, end - start)
+            # Steep ramp: +40C over duration
+            ramp = np.linspace(0, 40, end - start)
             
             df.iloc[start:end, idx_temp] += ramp
             
             df.iloc[start:end, idx_anom] = 1
             df.iloc[start:end, idx_type] = "thermal_runaway"
 
-    # 3. VOLTAGE SAG (Grid fault)
-    if rng.random() < 0.3:
+    # 3. VOLTAGE COLLAPSE (Severe Grid fault)
+    if rng.random() < 0.4:
         start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
-        duration = rng.integers(2, 6) # Short duration (10-30 mins)
+        duration = rng.integers(6, 18) # Short duration
         end = min(start + duration, n_points)
         
         if end > start:
-            df.iloc[start:end, idx_volt] *= 0.85 # 15% drop
-            df.iloc[start:end, idx_curr] *= 1.15 # Current rises
+            # 30% Voltage Drop, 50% Current Spike
+            df.iloc[start:end, idx_volt] *= 0.7 
+            df.iloc[start:end, idx_curr] *= 1.5 
             
             df.iloc[start:end, idx_anom] = 1
-            df.iloc[start:end, idx_type] = "voltage_sag"
+            df.iloc[start:end, idx_type] = "voltage_collapse"
         
     return df
 
@@ -266,7 +262,7 @@ def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame
 
 def main():
     print("==============================================")
-    print(" GridSense — Physics-based Data Generator")
+    print(" GridSense — Physics-based Data Generator (High Severity)")
     print("==============================================")
     
     rng = np.random.default_rng(RANDOM_SEED)

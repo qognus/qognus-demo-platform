@@ -7,9 +7,9 @@ Trains and evaluates an unsupervised anomaly detection model on the
 synthetic GridSense multivariate time series.
 
 UPDATES:
-- Auto-calibrates 'contamination' based on actual label density.
-- Implements 'Soft Metrics' (Time-Tolerant Scoring) to give credit 
-  for detecting anomalies slightly before/after the exact label timestamp.
+- Implements Strict Temporal Splitting (Train on Past, Eval on Future).
+- Auto-calibrates 'contamination' based on Training set density.
+- Implements 'Soft Metrics' (Time-Tolerant Scoring).
 """
 
 import json
@@ -19,7 +19,6 @@ from typing import List, Dict, Any, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import precision_score, recall_score, f1_score
 
 # ------------------------------------------------------------
 # CONFIG
@@ -118,6 +117,8 @@ def evaluate_soft_metrics(
     If a prediction is within 'tolerance' steps of a real anomaly, it counts as a hit.
     """
     n = len(y_true)
+    if n == 0:
+        return {"precision": 0.0, "recall": 0.0, "contamination": 0.0}
     
     # 1. Expand Ground Truth (Soft Targets)
     # If t is anomaly, then t-2...t+2 are valid "hit" zones
@@ -137,10 +138,6 @@ def evaluate_soft_metrics(
     precision = tp_soft / (tp_soft + fp_soft) if (tp_soft + fp_soft) > 0 else 0.0
     
     # 3. Calculate Recall (Did I catch the events?)
-    # For Recall, we want to know: For every real anomaly cluster, did we trigger?
-    # Simple proxy: Use soft truth as denominator? No, that dilutes it.
-    # Standard proxy: Overlap prediction onto true.
-    
     # Soft Recall: If I predicted 1, and it was close to a 1, count it.
     # Inverse expansion: Expand Predictions to see if they touch Truths
     y_pred_expanded = np.zeros(n, dtype=int)
@@ -204,7 +201,7 @@ def export_js_artifact(
 
 def main():
     print("===================================================")
-    print(" GridSense Time Series Anomaly Model (Corrected) ")
+    print(" GridSense Time Series Anomaly Model (Temporal Split) ")
     print("===================================================")
 
     if not IN_PARQUET.exists():
@@ -217,37 +214,67 @@ def main():
     window_df, X = build_window_features(
         df_full.reset_index(), window=WINDOW, feature_cols=FEATURE_COLS
     )
+
+    # --- 1. PREPARE TEMPORAL SPLIT ---
+    # We must sort window_df and X strictly by time to ensure "Past" vs "Future"
+    # Get indices that sort the DataFrame by timestamp
+    sort_idxs = np.argsort(window_df["timestamp"].values)
     
-    # --- AUTO-CALIBRATION ---
-    # Calculate actual anomaly rate in ground truth to set model sensitivity
-    actual_rate = window_df["window_label"].mean()
-    # Add a small buffer (e.g. 1.2x) to ensure we catch edge cases
+    # Reorder both X and window_df using these indices
+    window_df = window_df.iloc[sort_idxs].reset_index(drop=True)
+    X = X[sort_idxs]
+    
+    # Split point: 80% Train (Past), 20% Test (Future)
+    split_idx = int(len(window_df) * 0.8)
+    
+    X_train = X[:split_idx]
+    y_train = window_df["window_label"].iloc[:split_idx]
+    
+    X_test = X[split_idx:]
+    y_test = window_df["window_label"].iloc[split_idx:].to_numpy()
+
+    print(f"Temporal Split: Train on first {split_idx} samples, Eval on last {len(X_test)} samples.")
+
+    # --- 2. AUTO-CALIBRATION (Using ONLY Train Set) ---
+    actual_rate = y_train.mean()
+    # Add a small buffer (1.2x)
     contamination = max(0.01, min(0.15, actual_rate * 1.2))
     
-    print(f"Auto-calibrated contamination: {contamination:.3f} (True Rate: {actual_rate:.3f})")
+    print(f"Auto-calibrated contamination: {contamination:.3f} (Train Rate: {actual_rate:.3f})")
 
-    model = train_isolation_forest(X, contamination)
+    # --- 3. TRAIN (On Past Data Only) ---
+    model = train_isolation_forest(X_train, contamination)
 
-    print("Scoring windows...")
+    # --- 4. SCORE (Full Dataset) ---
+    # We score everything so the UI has a complete timeline, but metrics rely only on Test
+    print("Scoring full timeline...")
     scores_raw = model.decision_function(X)
     scores = -scores_raw # Invert so high = anomaly
     
     # Normalize scores [0,1]
     scores = (scores - scores.min()) / (scores.max() - scores.min())
     
-    # Predict based on quantile
-    threshold = np.quantile(scores, 1.0 - contamination)
+    # --- 5. PREDICT ---
+    # Determine threshold based on TRAINING distribution 
+    train_scores = scores[:split_idx]
+    threshold = np.quantile(train_scores, 1.0 - contamination)
+    
     preds = (scores >= threshold).astype(int)
 
     window_df["anomaly_score"] = scores
     window_df["predicted_anomaly"] = preds
 
-    print("Evaluating with Soft Metrics (Time Tolerance +/- 2 steps)...")
-    y_true = window_df["window_label"].to_numpy()
-    metrics = evaluate_soft_metrics(y_true, preds, tolerance=2)
-    print("Metrics:", metrics)
+    # --- 6. EVALUATE (On Future Data Only) ---
+    print("\nEvaluating Performance on Held-Out Future Data (Last 20%)...")
+    metrics = evaluate_soft_metrics(
+        y_true=y_test, 
+        y_pred=preds[split_idx:], 
+        tolerance=2
+    )
+    print("Test Set Metrics:", metrics)
 
-    # Merge back
+    # Merge back for export
+    # Note: df_full needs to be merged with our time-sorted window_df
     df_out = df_full.reset_index().merge(
         window_df[["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]],
         on=["substation_id", "timestamp"],
