@@ -441,15 +441,40 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
 }
 
 function updateHealthMetrics(metrics) {
-  const setVal = (id, val, colorClass) => {
-    const el = document.getElementById(id);
-    if(el) {
-        el.innerText = val;
-        el.className = ''; 
-        if(colorClass) el.className = `text-3xl font-bold font-mono ${colorClass}`;
+  // Helper to determine status color based on thresholds
+  // mode: 'higher_is_better' (Precision/Recall) or 'lower_is_better' (Anomaly Rate)
+  const getStatus = (val, mode) => {
+    if (mode === 'higher_is_better') {
+      if (val >= 0.80) return { color: 'text-emerald-400', dot: 'bg-emerald-500', shadow: 'shadow-emerald-500/50' }; // Good
+      if (val >= 0.50) return { color: 'text-amber-400', dot: 'bg-amber-500', shadow: 'shadow-amber-500/50' };     // Warning
+      return { color: 'text-red-400', dot: 'bg-red-500', shadow: 'shadow-red-500/50' };                             // Critical
+    } else {
+      // For Anomaly Rate: <5% is distinct/good, 5-15% is noisy, >15% is chaotic
+      if (val <= 0.05) return { color: 'text-emerald-400', dot: 'bg-emerald-500', shadow: 'shadow-emerald-500/50' };
+      if (val <= 0.15) return { color: 'text-amber-400', dot: 'bg-amber-500', shadow: 'shadow-amber-500/50' };
+      return { color: 'text-red-400', dot: 'bg-red-500', shadow: 'shadow-red-500/50' };
     }
   };
-  setVal('gs-metric-precision', (metrics.precision * 100).toFixed(1) + '%', 'text-emerald-400');
-  setVal('gs-metric-recall', (metrics.recall * 100).toFixed(1) + '%', 'text-emerald-400');
-  setVal('gs-metric-rate', (metrics.contamination * 100).toFixed(1) + '%', 'text-sky-400');
+
+  const updateCard = (metricKey, val, mode) => {
+    const status = getStatus(val, mode);
+    const valueEl = document.getElementById(`gs-metric-${metricKey}`);
+    const dotEl = document.getElementById(`gs-dot-${metricKey}`);
+    
+    // Update Value Text
+    if (valueEl) {
+      valueEl.innerText = (val * 100).toFixed(1) + '%';
+      valueEl.className = `text-3xl font-bold font-mono transition-colors duration-500 ${status.color}`;
+    }
+
+    // Update Traffic Light Dot
+    if (dotEl) {
+      // maintain base layout classes, update color/shadow
+      dotEl.className = `h-2.5 w-2.5 rounded-full transition-all duration-500 ${status.dot} shadow-[0_0_8px] ${status.shadow}`;
+    }
+  };
+
+  updateCard('precision', metrics.precision, 'higher_is_better');
+  updateCard('recall', metrics.recall, 'higher_is_better');
+  updateCard('rate', metrics.contamination, 'lower_is_better');
 }
