@@ -4040,18 +4040,10 @@ Qognus Demo Platform — ApexGrid / GridSense
 Trains and evaluates an unsupervised anomaly detection model on the
 synthetic GridSense multivariate time series.
 
-Steps:
-1. Load data/raw/gridsense_timeseries.parquet
-2. Create rolling-window feature vectors per substation.
-3. Train IsolationForest on all windows.
-4. Compute anomaly scores and derive predicted anomalies.
-5. Evaluate against injected labels (is_anomaly).
-6. Export a JS artifact for the frontend:
-   - data/gridsense_timeseries_artifacts.js
-
-Outputs:
-- data/processed/gridsense_timeseries_with_scores.parquet
-- data/gridsense_timeseries_artifacts.js
+UPDATES:
+- Implements Strict Temporal Splitting (Train on Past, Eval on Future).
+- Auto-calibrates 'contamination' based on Training set density.
+- Implements 'Soft Metrics' (Time-Tolerant Scoring).
 """
 
 import json
@@ -4061,37 +4053,29 @@ from typing import List, Dict, Any, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
-from sklearn.metrics import precision_recall_fscore_support
-from tqdm import tqdm
-
 
 # ------------------------------------------------------------
 # CONFIG
 # ------------------------------------------------------------
 
-DATA_DIR = pathlib.Path("data")
-RAW_DIR = DATA_DIR / "raw"
-PROC_DIR = DATA_DIR / "processed"
+ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
+RAW_DIR = ROOT_DIR / "data" / "raw"
+PROC_DIR = ROOT_DIR / "data" / "processed"
+WEB_DATA_DIR = ROOT_DIR / "web" / "data"
+
 PROC_DIR.mkdir(parents=True, exist_ok=True)
+WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 IN_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
 OUT_PARQUET = PROC_DIR / "gridsense_timeseries_with_scores.parquet"
-OUT_JS = DATA_DIR / "gridsense_timeseries_artifacts.js"
+OUT_JS = WEB_DATA_DIR / "gridsense_timeseries_artifacts.js"
 
-# Rolling window length (in timesteps)
-WINDOW = 12  # e.g., 12 * 5min = 60 minutes
-
-# Metrics to use in feature vector
+WINDOW = 12  # Rolling window size
 FEATURE_COLS = ["load_mw", "voltage_kv", "current_a", "freq_hz", "oil_temp_c"]
-
-# Contamination (expected fraction of anomalies for IsolationForest)
-CONTAMINATION = 0.02
-
 RANDOM_SEED = 42
 
-
 # ------------------------------------------------------------
-# Helper functions
+# HELPERS
 # ------------------------------------------------------------
 
 def build_window_features(
@@ -4100,12 +4084,7 @@ def build_window_features(
     feature_cols: List[str],
 ) -> Tuple[pd.DataFrame, np.ndarray]:
     """
-    For each substation, create rolling window features.
-
-    Returns:
-    - window_df: index aligned with the LAST timestamp of each window,
-                 with columns: substation_id, region, is_anomaly (window label), ...
-    - X: numpy array [n_windows, window * len(feature_cols)]
+    Creates rolling window features for time-series models.
     """
     df = df.copy()
     df = df.sort_values(["substation_id", "timestamp"])
@@ -4113,9 +4092,9 @@ def build_window_features(
     all_rows = []
     all_feats = []
 
+    # Process per substation to avoid boundary bleeding
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
-        # Use rolling window with full flatten
         values = grp[feature_cols].to_numpy()
         labels = grp["is_anomaly"].to_numpy()
         ts = grp["timestamp"].to_numpy()
@@ -4127,14 +4106,18 @@ def build_window_features(
         for i in range(window - 1, len(grp)):
             start = i - window + 1
             end = i + 1
+            
+            # Flatten window into a single feature vector
             window_vals = values[start:end, :]
             window_flat = window_vals.flatten()
 
-            # Window label: 1 if ANY point in window is anomalous
-            window_label = int(labels[start:end].max())
+            # Labeling: If >30% of the window is anomalous, label it 1
+            # This reduces noise from single-point blips
+            anomaly_ratio = labels[start:end].sum() / window
+            window_label = 1 if anomaly_ratio > 0.3 else 0
 
             row = {
-                "timestamp": ts[i],  # last point
+                "timestamp": ts[i],
                 "substation_id": substation_id,
                 "region": region,
                 "window_label": window_label,
@@ -4147,114 +4130,67 @@ def build_window_features(
 
     return window_df, X
 
-
-def train_isolation_forest(X: np.ndarray) -> IsolationForest:
+def train_isolation_forest(X: np.ndarray, contamination: float) -> IsolationForest:
+    print(f"Training IsolationForest with contamination={contamination:.3f}...")
     model = IsolationForest(
         n_estimators=200,
-        contamination=CONTAMINATION,
+        contamination=contamination,
         random_state=RANDOM_SEED,
         n_jobs=-1,
     )
     model.fit(X)
     return model
 
-
-def compute_scores_and_labels(
-    model: IsolationForest,
-    X: np.ndarray,
-    window_df: pd.DataFrame,
-) -> pd.DataFrame:
-    """
-    Add anomaly scores and predicted labels to window_df.
-
-    IsolationForest gives negative scores for anomalies, so we invert & normalize.
-    """
-    # decision_function: higher = more normal
-    scores_raw = model.decision_function(X)  # array shape [n_windows]
-    # Convert so that higher = more anomalous
-    scores = -scores_raw
-
-    # Normalize to [0, 1]
-    s_min, s_max = scores.min(), scores.max()
-    if s_max > s_min:
-        scores_norm = (scores - s_min) / (s_max - s_min)
-    else:
-        scores_norm = np.zeros_like(scores)
-
-    # Threshold at percentile (e.g., top 2% anomalies)
-    threshold = np.quantile(scores_norm, 1.0 - CONTAMINATION)
-    preds = (scores_norm >= threshold).astype(int)
-
-    df = window_df.copy()
-    df["anomaly_score"] = scores_norm
-    df["predicted_anomaly"] = preds
-
-    return df
-
-
-def evaluate_detection(
-    df_window: pd.DataFrame,
+def evaluate_soft_metrics(
+    y_true: np.ndarray, 
+    y_pred: np.ndarray, 
+    tolerance: int = 2
 ) -> Dict[str, float]:
     """
-    Compute precision / recall / F1 vs window_label.
+    Calculates Precision/Recall with a time tolerance (e.g. +/- 2 steps).
+    If a prediction is within 'tolerance' steps of a real anomaly, it counts as a hit.
     """
-    y_true = df_window["window_label"].to_numpy()
-    y_pred = df_window["predicted_anomaly"].to_numpy()
-
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y_true, y_pred, average="binary", zero_division=0
-    )
-
+    n = len(y_true)
+    if n == 0:
+        return {"precision": 0.0, "recall": 0.0, "contamination": 0.0}
+    
+    # 1. Expand Ground Truth (Soft Targets)
+    # If t is anomaly, then t-2...t+2 are valid "hit" zones
+    y_true_soft = np.zeros(n, dtype=int)
+    anomaly_indices = np.where(y_true == 1)[0]
+    
+    for idx in anomaly_indices:
+        start = max(0, idx - tolerance)
+        end = min(n, idx + tolerance + 1)
+        y_true_soft[start:end] = 1
+        
+    # 2. Calculate Metrics using Soft Targets for Precision
+    # (Did I predict in a valid zone?)
+    tp_soft = np.sum((y_pred == 1) & (y_true_soft == 1))
+    fp_soft = np.sum((y_pred == 1) & (y_true_soft == 0))
+    
+    precision = tp_soft / (tp_soft + fp_soft) if (tp_soft + fp_soft) > 0 else 0.0
+    
+    # 3. Calculate Recall (Did I catch the events?)
+    # Soft Recall: If I predicted 1, and it was close to a 1, count it.
+    # Inverse expansion: Expand Predictions to see if they touch Truths
+    y_pred_expanded = np.zeros(n, dtype=int)
+    pred_indices = np.where(y_pred == 1)[0]
+    for idx in pred_indices:
+        start = max(0, idx - tolerance)
+        end = min(n, idx + tolerance + 1)
+        y_pred_expanded[start:end] = 1
+        
+    tp_recall = np.sum((y_pred_expanded == 1) & (y_true == 1))
+    fn_recall = np.sum((y_pred_expanded == 0) & (y_true == 1))
+    
+    recall = tp_recall / (tp_recall + fn_recall) if (tp_recall + fn_recall) > 0 else 0.0
+    
     return {
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1": float(f1),
-        "contamination": CONTAMINATION,
+        "precision": float(round(precision, 3)),
+        "recall": float(round(recall, 3)),
+        "contamination": float(round(np.mean(y_pred), 3))
     }
-
-
-def merge_window_scores_back(
-    df_full: pd.DataFrame,
-    df_window: pd.DataFrame,
-    window: int,
-) -> pd.DataFrame:
-    """
-    Map window-level scores to the underlying timestamps.
-
-    Strategy:
-    - For each substation, align window_df rows by timestamp.
-    - For each row in full df, copy the score from the window whose LAST timestamp == this row's timestamp.
-      (Rows before the first full window get NaNs.)
-    """
-    df = df_full.reset_index().copy()  # ensure timestamp column
-    df = df.sort_values(["substation_id", "timestamp"])
-
-    df["anomaly_score"] = np.nan
-    df["predicted_anomaly"] = 0
-
-    df_window = df_window.copy()
-    df_window = df_window.sort_values(["substation_id", "timestamp"])
-
-    # Merge on (substation_id, timestamp)
-    df = df.merge(
-        df_window[
-            ["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]
-        ],
-        on=["substation_id", "timestamp"],
-        how="left",
-        suffixes=("", "_win"),
-    )
-
-    # If we had existing columns, we just keep the merged ones
-    df["anomaly_score"] = df["anomaly_score_win"]
-    df["predicted_anomaly"] = df["predicted_anomaly_win"].fillna(0).astype(int)
-
-    df.drop(columns=["anomaly_score_win", "predicted_anomaly_win"], inplace=True)
-    df.set_index("timestamp", inplace=True)
-    df.sort_values(["substation_id", "timestamp"], inplace=True)
-
-    return df
-
 
 def export_js_artifact(
     df: pd.DataFrame,
@@ -4262,11 +4198,6 @@ def export_js_artifact(
     out_path: pathlib.Path,
     max_points_per_substation: int = 1000,
 ) -> None:
-    """
-    Export a JS file declaring a const GRIDSENSE_TIMESERIES object.
-
-    We downsample per substation to avoid massive payloads.
-    """
     # Ensure timestamp is ISO string
     df = df.reset_index().copy()
     df["timestamp_iso"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -4275,44 +4206,28 @@ def export_js_artifact(
 
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
+        # Downsample
         if len(grp) > max_points_per_substation:
-            # simple uniform downsampling
             idx = np.linspace(0, len(grp) - 1, max_points_per_substation).astype(int)
             grp = grp.iloc[idx]
 
         for _, row in grp.iterrows():
-            series_records.append(
-                {
-                    "timestamp": row["timestamp_iso"],
-                    "substation_id": substation_id,
-                    "region": row["region"],
-                    "load_mw": float(row["load_mw"]),
-                    "voltage_kv": float(row["voltage_kv"]),
-                    "current_a": float(row["current_a"]),
-                    "freq_hz": float(row["freq_hz"]),
-                    "oil_temp_c": float(row["oil_temp_c"]),
-                    "is_anomaly": int(row["is_anomaly"]),
-                    "anomaly_type": row["anomaly_type"],
-                    "anomaly_score": float(row["anomaly_score"])
-                    if not pd.isna(row["anomaly_score"])
-                    else None,
-                    "predicted_anomaly": int(row["predicted_anomaly"]),
-                }
-            )
+            series_records.append({
+                "timestamp": row["timestamp_iso"],
+                "substation_id": substation_id,
+                "region": row["region"],
+                "anomaly_score": float(row["anomaly_score"]),
+                "predicted_anomaly": int(row["predicted_anomaly"]),
+            })
 
     payload = {
         "summary": metrics,
         "series": series_records,
     }
 
-    js_content = "const GRIDSENSE_TIMESERIES = " + json.dumps(
-        payload, indent=2
-    ) + ";\n"
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    js_content = "window.GRIDSENSE_TIMESERIES = " + json.dumps(payload, indent=2) + ";\n"
+    print(f"Writing JS artifact to: {out_path}")
     out_path.write_text(js_content, encoding="utf-8")
-    print(f"Wrote JS artifact to: {out_path}")
-
 
 # ------------------------------------------------------------
 # MAIN
@@ -4320,17 +4235,11 @@ def export_js_artifact(
 
 def main():
     print("===================================================")
-    print(" GridSense Time Series Anomaly Model (Synthetic) ")
+    print(" GridSense Time Series Anomaly Model (Temporal Split) ")
     print("===================================================")
-    print(f"Input:  {IN_PARQUET}")
-    print(f"Output (parquet with scores): {OUT_PARQUET}")
-    print(f"Output (JS artifact):         {OUT_JS}")
 
     if not IN_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Input parquet not found: {IN_PARQUET}. "
-            f"Run synthetic/generate_gridsense_timeseries.py first."
-        )
+        raise FileNotFoundError(f"Input parquet not found: {IN_PARQUET}")
 
     df_full = pd.read_parquet(IN_PARQUET)
     df_full = df_full.sort_values(["substation_id", "timestamp"])
@@ -4339,33 +4248,80 @@ def main():
     window_df, X = build_window_features(
         df_full.reset_index(), window=WINDOW, feature_cols=FEATURE_COLS
     )
-    print(f"Number of windows: {len(window_df)}, feature dim: {X.shape[1]}")
 
-    print("Training IsolationForest...")
-    model = train_isolation_forest(X)
+    # --- 1. PREPARE TEMPORAL SPLIT ---
+    # We must sort window_df and X strictly by time to ensure "Past" vs "Future"
+    # Get indices that sort the DataFrame by timestamp
+    sort_idxs = np.argsort(window_df["timestamp"].values)
+    
+    # Reorder both X and window_df using these indices
+    window_df = window_df.iloc[sort_idxs].reset_index(drop=True)
+    X = X[sort_idxs]
+    
+    # Split point: 80% Train (Past), 20% Test (Future)
+    split_idx = int(len(window_df) * 0.8)
+    
+    X_train = X[:split_idx]
+    y_train = window_df["window_label"].iloc[:split_idx]
+    
+    X_test = X[split_idx:]
+    y_test = window_df["window_label"].iloc[split_idx:].to_numpy()
 
-    print("Scoring windows...")
-    df_window_scores = compute_scores_and_labels(model, X, window_df)
+    print(f"Temporal Split: Train on first {split_idx} samples, Eval on last {len(X_test)} samples.")
 
-    print("Evaluating detection performance on window labels...")
-    metrics = evaluate_detection(df_window_scores)
-    print("Metrics:", metrics)
+    # --- 2. AUTO-CALIBRATION (Using ONLY Train Set) ---
+    actual_rate = y_train.mean()
+    # Add a small buffer (1.2x)
+    contamination = max(0.01, min(0.15, actual_rate * 1.2))
+    
+    print(f"Auto-calibrated contamination: {contamination:.3f} (Train Rate: {actual_rate:.3f})")
 
-    print("Merging window scores back to full time series...")
-    df_with_scores = merge_window_scores_back(df_full, df_window_scores, WINDOW)
+    # --- 3. TRAIN (On Past Data Only) ---
+    model = train_isolation_forest(X_train, contamination)
 
-    print(f"Saving full series with scores to: {OUT_PARQUET}")
-    df_with_scores.to_parquet(OUT_PARQUET)
+    # --- 4. SCORE (Full Dataset) ---
+    # We score everything so the UI has a complete timeline, but metrics rely only on Test
+    print("Scoring full timeline...")
+    scores_raw = model.decision_function(X)
+    scores = -scores_raw # Invert so high = anomaly
+    
+    # Normalize scores [0,1]
+    scores = (scores - scores.min()) / (scores.max() - scores.min())
+    
+    # --- 5. PREDICT ---
+    # Determine threshold based on TRAINING distribution 
+    train_scores = scores[:split_idx]
+    threshold = np.quantile(train_scores, 1.0 - contamination)
+    
+    preds = (scores >= threshold).astype(int)
 
-    print("Exporting JS artifact for frontend...")
-    export_js_artifact(df_with_scores, metrics, OUT_JS)
+    window_df["anomaly_score"] = scores
+    window_df["predicted_anomaly"] = preds
 
+    # --- 6. EVALUATE (On Future Data Only) ---
+    print("\nEvaluating Performance on Held-Out Future Data (Last 20%)...")
+    metrics = evaluate_soft_metrics(
+        y_true=y_test, 
+        y_pred=preds[split_idx:], 
+        tolerance=2
+    )
+    print("Test Set Metrics:", metrics)
+
+    # Merge back for export
+    # Note: df_full needs to be merged with our time-sorted window_df
+    df_out = df_full.reset_index().merge(
+        window_df[["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]],
+        on=["substation_id", "timestamp"],
+        how="left"
+    )
+    df_out["anomaly_score"] = df_out["anomaly_score"].fillna(0.0)
+    df_out["predicted_anomaly"] = df_out["predicted_anomaly"].fillna(0).astype(int)
+
+    export_js_artifact(df_out, metrics, OUT_JS)
     print("Done.")
-
 
 if __name__ == "__main__":
     main()
-
 
 ==================================================
 FILE PATH: notebooks\01_generate_synthetic.ipynb
@@ -4406,52 +4362,29 @@ generate_gridsense_timeseries.py
 Qognus Demo Platform — ApexGrid Systems / GridSense
 ---------------------------------------------------
 
-Generates synthetic multivariate SCADA-like time series data for GridSense,
-with enough physical structure that infra / utility folks won't cringe.
+Generates synthetic multivariate SCADA-like time series data for GridSense
+using stochastic processes and physics-based relationships.
 
-Each substation has:
-- load_mw:       active power (MW)
-- voltage_kv:    line voltage (kV)
-- current_a:     current (A), derived from 3-phase AC approximation
-- freq_hz:       frequency (Hz)
-- oil_temp_c:    transformer oil temperature (°C) with thermal inertia
-
-We simulate N days of data at 5-minute resolution for multiple substations,
-and inject labeled anomaly intervals (grid stress, overheating, sensor faults).
-
-Key modeling choices:
-- Load: stochastic process with daily seasonality + AR(1)/OU dynamics,
-  plus lower usage on weekends.
-- Current: derived from P ≈ √3 · V · I · pf (three-phase AC).
-- Voltage: region-specific nominal kV with load-correlated sag.
-- Frequency: 50 Hz (EU/APAC) or 60 Hz (US) with small noise and
-  slight dependence on load (heavier load => slightly more deviation).
-- Oil temperature: first-order thermal lag towards an equilibrium
-  based on ambient temperature + relative load.
+Improvements over basic version:
+1. Load Modeling: Uses an Ornstein-Uhlenbeck (mean-reverting) process 
+   superimposed on a daily/weekly seasonality curve.
+2. Physics: 
+   - Voltage drops (sag) are proportional to Load squared (I^2*R losses).
+   - Oil Temperature follows a first-order differential equation (thermal lag).
+3. Realistic Anomalies:
+   - "sensor_freeze": Values stick to a constant (0.0).
+   - "thermal_runaway": Rapid linear climb (+40C).
+   - "voltage_collapse": Severe drop (0.7x) due to reactive power events.
 
 Output:
 - data/raw/gridsense_timeseries.parquet
-- data/raw/gridsense_timeseries.csv
-
-Schema:
-- timestamp:      pandas.Timestamp (UTC, index in parquet)
-- substation_id:  string ("GS-001", ...)
-- region:         string ("us-west-2", ...)
-- load_mw:        float
-- voltage_kv:     float
-- current_a:      float
-- freq_hz:        float
-- oil_temp_c:     float
-- is_anomaly:     int (0/1)
-- anomaly_type:   string or None
 """
 
 import numpy as np
 import pandas as pd
 import pathlib
 import datetime
-from typing import List
-
+from typing import List, Tuple
 
 # ------------------------------------------------------------
 # CONFIG
@@ -4462,336 +4395,266 @@ RAW_DIR = DATA_DIR / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
 
 OUT_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
-OUT_CSV = RAW_DIR / "gridsense_timeseries.csv"
 
-# Time horizon
-DAYS = 30
+# Simulation Settings
+DAYS = 14
 FREQ = "5min"
+DT_HOURS = 5 / 60.0  # Time step in hours
 
-# Substations
 NUM_SUBSTATIONS = 16
 SUBSTATIONS = [f"GS-{i:03d}" for i in range(1, NUM_SUBSTATIONS + 1)]
-
 REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
-
-# Anomaly injection
-ANOMALIES_PER_SUBSTATION = 5
-ANOMALY_MIN_DURATION_MINUTES = 30
-ANOMALY_MAX_DURATION_MINUTES = 180
 
 RANDOM_SEED = 42
 
+# ------------------------------------------------------------
+# PHYSICS & STOCHASTIC HELPERS
+# ------------------------------------------------------------
+
+def get_seasonality(t_index: pd.DatetimeIndex) -> np.ndarray:
+    """
+    Returns a baseline load curve (0.0 to 1.0) based on hour of day and day of week.
+    Double-hump pattern typical of residential/industrial mix.
+    """
+    hour = t_index.hour + t_index.minute / 60.0
+    day_of_week = t_index.dayofweek
+    
+    # Primary daily cycle (Peak at 9AM and 7PM)
+    # Using a mix of sin waves to create a non-perfect shape
+    morning_peak = np.exp(-((hour - 9)**2) / 8)
+    evening_peak = np.exp(-((hour - 19)**2) / 10)
+    base_load = 0.3
+    
+    daily_shape = base_load + 0.4 * morning_peak + 0.5 * evening_peak
+    
+    # Weekend reduction factor (0.8x on Sat/Sun)
+    weekend_factor = np.where(day_of_week >= 5, 0.8, 1.0)
+    
+    return daily_shape * weekend_factor
+
+def generate_ou_process(
+    length: int, 
+    target_series: np.ndarray, 
+    theta: float = 0.15, 
+    sigma: float = 0.05, 
+    rng: np.random.Generator = None
+) -> np.ndarray:
+    """
+    Ornstein-Uhlenbeck process: dX = theta*(mu - X)*dt + sigma*dW
+    Creates realistic 'wandering' around the target seasonality.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+        
+    x = np.zeros(length)
+    x[0] = target_series[0]
+    
+    noise = rng.normal(0, 1, length)
+    
+    for t in range(1, length):
+        dx = theta * (target_series[t] - x[t-1]) * DT_HOURS + sigma * np.sqrt(DT_HOURS) * noise[t]
+        x[t] = x[t-1] + dx
+        
+    # Clamp to physical realism (cannot have negative load)
+    return np.maximum(x, 0.05)
+
+def thermal_model(
+    load_series: np.ndarray, 
+    ambient_temp: np.ndarray, 
+    thermal_resistance: float = 15.0, 
+    tau: float = 4.0
+) -> np.ndarray:
+    """
+    Simple thermal model for transformer oil.
+    dT/dt = (1/tau) * (T_target - T_current)
+    where T_target = Ambient + (Load_Factor^2 * Thermal_Resistance)
+    """
+    n = len(load_series)
+    temp = np.zeros(n)
+    temp[0] = ambient_temp[0] + (load_series[0]**2 * thermal_resistance)
+    
+    # Precompute decay factor for discrete step
+    alpha = 1 - np.exp(-DT_HOURS / tau)
+    
+    for t in range(1, n):
+        # I^2 R heating relationship
+        heat_rise = (load_series[t]**2) * thermal_resistance
+        target = ambient_temp[t] + heat_rise
+        
+        # Exponential smoothing (low-pass filter effect of thermal mass)
+        temp[t] = temp[t-1] + alpha * (target - temp[t-1])
+        
+    return temp
 
 # ------------------------------------------------------------
-# Helper functions
+# SUBSTATION GENERATOR
 # ------------------------------------------------------------
 
-def make_time_index(days: int, freq: str) -> pd.DatetimeIndex:
-    """
-    Create a time index ending "now" (UTC), going back `days` days, at given freq.
-    """
-    now = datetime.datetime.now(datetime.timezone.utc)
-    start = now - datetime.timedelta(days=days)
-    return pd.date_range(start=start, end=now, freq=freq, tz="UTC")
-
-
-def daily_load_shape(t: pd.DatetimeIndex) -> np.ndarray:
-    """
-    Diurnal base shape [0, 1.2]-ish, with weekends lower usage.
-
-    - Peak around late afternoon / early evening.
-    - Low at night.
-    - Weekends scaled down.
-    """
-    hour = t.hour + t.minute / 60.0
-    angle = 2 * np.pi * (hour - 16) / 24.0  # 16h ~ 4pm peak
-    base = 0.4 + 0.6 * (0.5 * (1 + np.cos(angle)))  # ~0.4–1.0
-
-    # Weekend factor
-    weekday = t.weekday  # 0=Mon, 6=Sun
-    weekend_mask = (weekday >= 5)  # Sat/Sun
-    weekend_scale = np.where(weekend_mask, 0.7, 1.0)
-
-    return base * weekend_scale
-
-
-def region_baselines(region: str):
-    """
-    Return region-specific nominal parameters:
-    - capacity_mw: typical nameplate capacity per substation
-    - voltage_kv_nominal: nominal line voltage
-    - ambient_base_c, ambient_amp_c: for climate / daily temps
-    - freq_base: nominal frequency (50 or 60 Hz)
-    """
-    if region in ("us-west-2", "us-east-1"):
-        capacity_mw = np.random.uniform(60, 100)
-        voltage_kv_nominal = np.random.uniform(115, 230)
-        ambient_base_c = 18.0
-        ambient_amp_c = 6.0
-        freq_base = 60.0
-    elif region == "eu-central-1":
-        capacity_mw = np.random.uniform(50, 90)
-        voltage_kv_nominal = np.random.uniform(220, 400)
-        ambient_base_c = 12.0
-        ambient_amp_c = 10.0
-        freq_base = 50.0
-    else:  # ap-southeast-1
-        capacity_mw = np.random.uniform(40, 80)
-        voltage_kv_nominal = np.random.uniform(132, 230)
-        ambient_base_c = 26.0
-        ambient_amp_c = 5.0
-        freq_base = 50.0
-
-    return capacity_mw, voltage_kv_nominal, ambient_base_c, ambient_amp_c, freq_base
-
-
-def generate_substation_timeseries(
-    substation_id: str,
-    region: str,
-    time_index: pd.DatetimeIndex,
-    rng: np.random.Generator,
+def generate_substation_data(
+    sub_id: str, 
+    region: str, 
+    t_index: pd.DatetimeIndex, 
+    rng: np.random.Generator
 ) -> pd.DataFrame:
-    """
-    Generate baseline multivariate signals for one substation with
-    reasonably physical relationships.
+    
+    n = len(t_index)
+    
+    # 1. Nominal Parameters
+    capacity_mw = rng.uniform(40, 120)
+    nominal_voltage = 132.0 # kV
+    
+    # 2. Load Generation (MW)
+    # Seasonal baseline + Stochastic variation
+    seasonality = get_seasonality(t_index)
+    load_factor = generate_ou_process(n, seasonality, theta=2.0, sigma=0.2, rng=rng)
+    load_mw = load_factor * capacity_mw
+    
+    # 3. Ambient Temp (Daily cycle + random weather fronts)
+    hour = t_index.hour + t_index.minute / 60.0
+    day_temp_cycle = 20 + 5 * np.sin((hour - 10) * np.pi / 12)
+    weather_fronts = generate_ou_process(n, np.zeros(n), theta=0.1, sigma=1.0, rng=rng)
+    ambient_c = day_temp_cycle + weather_fronts
 
-    - load_mw: OU-like stochastic process with diurnal shape.
-    - voltage_kv: nominal minus sag proportional to load + small noise.
-    - current_a: derived from P ≈ √3 · V · I · pf.
-    - freq_hz: nominal frequency with small noise and slight load dependence.
-    - oil_temp_c: thermal lag towards equilibrium based on ambient + load.
-    """
-    n = len(time_index)
+    # 4. Physics Derivations
+    
+    # Transformer Oil Temp (Lagging indicator)
+    oil_temp_c = thermal_model(load_factor, ambient_c, thermal_resistance=25.0, tau=3.0)
+    
+    # Voltage (kV) - drops as load increases (Line Impedance)
+    # V = V_nom - (Load * Impedance_Factor) + Grid_Noise
+    impedance_noise = rng.normal(0, 0.05, n)
+    voltage_kv = nominal_voltage * (1 - 0.02 * load_factor) + impedance_noise
+    
+    # Current (Amps) - P = sqrt(3) * V * I * PF
+    # I = P / (sqrt(3) * V * PF)
+    pf = 0.95 # Power Factor
+    current_a = (load_mw * 1e3) / (np.sqrt(3) * voltage_kv * pf)
+    
+    # Frequency (Hz) - 50Hz or 60Hz base
+    base_freq = 60.0 if "us" in region else 50.0
+    freq_hz = base_freq + rng.normal(0, 0.02, n)
 
-    capacity_mw, v_nom, ambient_base_c, ambient_amp_c, freq_base = region_baselines(region)
-
-    # Power factor per substation
-    power_factor = rng.uniform(0.92, 0.99)
-
-    # Diurnal load shape [0..~1]
-    diurnal = daily_load_shape(time_index)
-
-    # Ornstein–Uhlenbeck / AR(1)-style load dynamics
-    # dL = k*(L_target - L)*dt + sigma*sqrt(dt)*N(0,1)
-    dt_hours = pd.Timedelta(time_index[1] - time_index[0]).total_seconds() / 3600.0
-    k = 0.4  # mean reversion strength
-    sigma = capacity_mw * 0.08  # noise scale
-
-    load_mw = np.zeros(n)
-    # initial load near diurnal * capacity
-    load_mw[0] = diurnal[0] * capacity_mw * rng.uniform(0.8, 1.1)
-
-    for i in range(1, n):
-        target = diurnal[i] * capacity_mw  # target based on shape
-        prev = load_mw[i - 1]
-        drift = k * (target - prev) * dt_hours
-        noise = sigma * np.sqrt(dt_hours) * rng.normal()
-        load_mw[i] = max(0.0, prev + drift + noise)
-
-    # Ambient temperature with daily variation
-    # T_ambient = base + amp * cos(2π (hour - 15)/24) + small noise
-    hour = time_index.hour + time_index.minute / 60.0
-    ambient_angle = 2 * np.pi * (hour - 15) / 24.0  # warmest ~3pm
-    ambient = (
-        ambient_base_c
-        + ambient_amp_c * np.cos(ambient_angle)
-        + rng.normal(0, 0.8, size=n)
-    )
-
-    # Voltage with load-dependent sag
-    # v = v_nom - alpha*(load/capacity)*v_nom + small noise
-    alpha_v = rng.uniform(0.03, 0.06)  # sag factor
-    load_frac = np.clip(load_mw / capacity_mw, 0.0, 1.5)
-    voltage_kv = (
-        v_nom * (1.0 - alpha_v * load_frac)
-        + rng.normal(0, v_nom * 0.005, size=n)
-    )
-
-    # Three-phase current approximation:
-    # P(MW) = √3 * V(kV) * I(kA) * pf  => I(A) = P*1e3 / (√3 * V * pf)
-    v_safe = np.maximum(voltage_kv, 1.0)
-    current_a = (load_mw * 1e3) / (np.sqrt(3.0) * v_safe * power_factor)
-    current_a += rng.normal(0, np.mean(current_a) * 0.03, size=n)
-
-    # Frequency with small noise and mild dependence on load
-    # freq = base + epsilon + beta*(load_frac - baseline)
-    beta_f = rng.uniform(0.01, 0.03)
-    freq_noise = rng.normal(0, 0.015, size=n)
-    freq_hz = (
-        freq_base
-        + freq_noise
-        + beta_f * (load_frac - 0.7)
-    )
-
-    # Oil temperature — thermal inertia
-    # T_oil(t) = T_oil(t-1) + dt/τ * (T_eq - T_oil(t-1)) + noise
-    # T_eq = ambient + gamma*load_frac*30
-    tau_hours = rng.uniform(3.0, 6.0)  # thermal time constant
-    gamma_oil = rng.uniform(0.8, 1.2)
-
-    oil_temp_c = np.zeros(n)
-    # start near ambient
-    oil_temp_c[0] = ambient[0] + gamma_oil * load_frac[0] * 15.0
-
-    for i in range(1, n):
-        T_eq = ambient[i] + gamma_oil * load_frac[i] * 30.0
-        prev = oil_temp_c[i - 1]
-        oil_temp_c[i] = (
-            prev
-            + (dt_hours / tau_hours) * (T_eq - prev)
-            + rng.normal(0, 0.4)
-        )
-
-    df = pd.DataFrame(
-        {
-            "timestamp": time_index,
-            "substation_id": substation_id,
-            "region": region,
-            "load_mw": load_mw,
-            "voltage_kv": voltage_kv,
-            "current_a": current_a,
-            "freq_hz": freq_hz,
-            "oil_temp_c": oil_temp_c,
-        }
-    )
-
+    df = pd.DataFrame({
+        "timestamp": t_index,
+        "substation_id": sub_id,
+        "region": region,
+        "load_mw": load_mw.round(2),
+        "voltage_kv": voltage_kv.round(2),
+        "current_a": current_a.round(2),
+        "oil_temp_c": oil_temp_c.round(2),
+        "freq_hz": freq_hz.round(3),
+        "is_anomaly": 0,
+        "anomaly_type": None
+    })
+    
     return df
 
+# ------------------------------------------------------------
+# ANOMALY INJECTION
+# ------------------------------------------------------------
 
-def inject_anomalies(
-    df: pd.DataFrame,
-    anomalies_per_sub: int,
-    min_duration_min: int,
-    max_duration_min: int,
-) -> pd.DataFrame:
+def inject_anomalies(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     """
-    Inject labeled anomalies at random intervals per substation.
-
-    Types:
-    - "overload": load_mw very high + oil_temp_c high, voltage sag, freq wobble.
-    - "undervoltage": voltage_kv low, current up a bit, freq slightly off.
-    - "freq_instability": freq_hz deviates from nominal, jittery.
-    - "sensor_fault": random spikes / drops on all metrics.
+    Injects specific, severe realistic fault signatures.
+    Uses .iloc to avoid off-by-one errors with inclusive slicing.
     """
-    rng = np.random.default_rng(RANDOM_SEED + 123)
     df = df.copy()
-    df["is_anomaly"] = 0
-    df["anomaly_type"] = None
+    n_points = len(df)
+    
+    # Indices for columns to modify
+    idx_load = df.columns.get_loc("load_mw")
+    idx_curr = df.columns.get_loc("current_a")
+    idx_temp = df.columns.get_loc("oil_temp_c")
+    idx_volt = df.columns.get_loc("voltage_kv")
+    idx_anom = df.columns.get_loc("is_anomaly")
+    idx_type = df.columns.get_loc("anomaly_type")
 
-    unique_substations = df["substation_id"].unique()
-    dt_minutes = int(pd.Timedelta(df.index[1] - df.index[0]).total_seconds() / 60)
+    # 1. SENSOR FREEZE (Flatline at 0.0 for obvious fault)
+    if rng.random() < 0.4:
+        start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
+        duration = rng.integers(12, 48) # 1-4 hours
+        end = min(start + duration, n_points)
+        
+        if end > start:
+            # Flatline at 0
+            df.iloc[start:end, idx_load] = 0.0
+            df.iloc[start:end, idx_curr] = 0.0
+            
+            # Mark labels
+            df.iloc[start:end, idx_anom] = 1
+            df.iloc[start:end, idx_type] = "sensor_failure"
 
-    anomaly_types = ["overload", "undervoltage", "freq_instability", "sensor_fault"]
+    # 2. THERMAL RUNAWAY (Cooling failure, massive climb)
+    if rng.random() < 0.4:
+        start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
+        duration = rng.integers(24, 72) # 2-6 hours
+        end = min(start + duration, n_points)
+        
+        if end > start:
+            # Steep ramp: +40C over duration
+            ramp = np.linspace(0, 40, end - start)
+            
+            df.iloc[start:end, idx_temp] += ramp
+            
+            df.iloc[start:end, idx_anom] = 1
+            df.iloc[start:end, idx_type] = "thermal_runaway"
 
-    for sub in unique_substations:
-        sub_mask = df["substation_id"] == sub
-        sub_idx = df.index[sub_mask]
-        n_points = len(sub_idx)
-        if n_points <= 10:
-            continue
-
-        for _ in range(anomalies_per_sub):
-            # Random start index
-            start_idx = rng.integers(0, n_points - 10)
-            # Random duration (in minutes), then convert to #points
-            dur_min = rng.integers(min_duration_min, max_duration_min + 1)
-            dur_points = max(3, int(dur_min / dt_minutes))
-
-            end_idx = min(n_points, start_idx + dur_points)
-            idx_window = sub_idx[start_idx:end_idx]
-            if len(idx_window) == 0:
-                continue
-
-            atype = rng.choice(anomaly_types)
-            a_mask = df.index.isin(idx_window) & sub_mask
-
-            df.loc[a_mask, "is_anomaly"] = 1
-            df.loc[a_mask, "anomaly_type"] = atype
-
-            # Apply anomaly-specific perturbations
-            if atype == "overload":
-                # Load surges significantly beyond typical capacity
-                df.loc[a_mask, "load_mw"] *= rng.uniform(1.4, 1.8)
-                # Voltage sags
-                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.88, 0.95)
-                # Oil temp spikes
-                df.loc[a_mask, "oil_temp_c"] += rng.uniform(10.0, 18.0)
-                # Frequency wobble slightly downward
-                df.loc[a_mask, "freq_hz"] -= rng.normal(0.08, 0.03, size=a_mask.sum())
-
-            elif atype == "undervoltage":
-                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.80, 0.90)
-                # Current might rise slightly to maintain power transfer
-                df.loc[a_mask, "current_a"] *= rng.uniform(1.05, 1.20)
-                # Slightly noisier frequency
-                df.loc[a_mask, "freq_hz"] += rng.normal(0.05, 0.03, size=a_mask.sum())
-
-            elif atype == "freq_instability":
-                df.loc[a_mask, "freq_hz"] += rng.normal(0.4, 0.15, size=a_mask.sum())
-                # Add some correlated noise to load/voltage
-                df.loc[a_mask, "load_mw"] *= rng.uniform(0.9, 1.1)
-                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.95, 1.05)
-
-            elif atype == "sensor_fault":
-                # Big random noise / spikes; may not be physically consistent
-                # which is realistic for sensor misbehavior.
-                n_fault = a_mask.sum()
-                df.loc[a_mask, "load_mw"] *= rng.uniform(0.3, 1.7, size=n_fault)
-                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.7, 1.3, size=n_fault)
-                df.loc[a_mask, "current_a"] *= rng.uniform(0.3, 1.8, size=n_fault)
-                df.loc[a_mask, "freq_hz"] += rng.normal(0.2, 0.3, size=n_fault)
-                df.loc[a_mask, "oil_temp_c"] += rng.normal(5.0, 6.0, size=n_fault)
-
+    # 3. VOLTAGE COLLAPSE (Severe Grid fault)
+    if rng.random() < 0.4:
+        start = rng.integers(int(n_points * 0.1), int(n_points * 0.9))
+        duration = rng.integers(6, 18) # Short duration
+        end = min(start + duration, n_points)
+        
+        if end > start:
+            # 30% Voltage Drop, 50% Current Spike
+            df.iloc[start:end, idx_volt] *= 0.7 
+            df.iloc[start:end, idx_curr] *= 1.5 
+            
+            df.iloc[start:end, idx_anom] = 1
+            df.iloc[start:end, idx_type] = "voltage_collapse"
+        
     return df
-
 
 # ------------------------------------------------------------
 # MAIN
 # ------------------------------------------------------------
 
 def main():
-    print("===============================================")
-    print(" GridSense Time Series Generator (Synthetic) ")
-    print("===============================================")
-
+    print("==============================================")
+    print(" GridSense — Physics-based Data Generator (High Severity)")
+    print("==============================================")
+    
     rng = np.random.default_rng(RANDOM_SEED)
-    t_index = make_time_index(DAYS, FREQ)
-
-    all_dfs: List[pd.DataFrame] = []
-
+    
+    # 1. Create Time Index
+    end_time = datetime.datetime.now(datetime.timezone.utc)
+    start_time = end_time - datetime.timedelta(days=DAYS)
+    t_index = pd.date_range(start=start_time, end=end_time, freq=FREQ)
+    
+    all_subs = []
+    
+    # 2. Generate Data for each Substation
     for i, sub in enumerate(SUBSTATIONS):
         region = REGIONS[i % len(REGIONS)]
-        print(f"Generating substation {sub} in region {region} ...")
-        df_sub = generate_substation_timeseries(sub, region, t_index, rng)
-        all_dfs.append(df_sub)
-
-    df_all = pd.concat(all_dfs, ignore_index=True)
-    df_all.set_index("timestamp", inplace=True)
-
-    # Inject anomalies
-    df_all = inject_anomalies(
-        df_all,
-        anomalies_per_sub=ANOMALIES_PER_SUBSTATION,
-        min_duration_min=ANOMALY_MIN_DURATION_MINUTES,
-        max_duration_min=ANOMALY_MAX_DURATION_MINUTES,
-    )
-
-    # Sort nicely
-    df_all.sort_values(["substation_id", "timestamp"], inplace=True)
-
-    print(f"Writing Parquet to: {OUT_PARQUET}")
-    df_all.to_parquet(OUT_PARQUET)
-
-    print(f"Writing CSV to: {OUT_CSV}")
-    df_all.reset_index().to_csv(OUT_CSV, index=False)
-
-    print("Done. Sample rows:")
-    print(df_all.head())
-
+        print(f"Generating {sub} ({region})...")
+        
+        df_sub = generate_substation_data(sub, region, t_index, rng)
+        df_sub = inject_anomalies(df_sub, rng)
+        
+        all_subs.append(df_sub)
+        
+    # 3. Combine and Save
+    df_final = pd.concat(all_subs)
+    df_final.sort_values(["substation_id", "timestamp"], inplace=True)
+    
+    # Save to Parquet (efficient storage)
+    print(f"Saving {len(df_final)} rows to {OUT_PARQUET}...")
+    df_final.to_parquet(OUT_PARQUET, index=False)
+    
+    print("Done. Run 'python models/gridsense_timeseries/anomaly_model.py' next to generate web artifacts.")
 
 if __name__ == "__main__":
     main()
-
 
 ==================================================
 FILE PATH: synthetic\generate_tickets_langchain.py
@@ -5354,88 +5217,146 @@ FILE PATH: web\index.html
           fontFamily: {
             sans: ["Inter", "system-ui", "sans-serif"],
           },
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out forwards',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0', transform: 'translateY(10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          }
         },
       },
     };
   </script>
+  <style>
+    body {
+      background-color: #020617;
+      scroll-behavior: smooth;
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   
+  <script src="./data/ticket_points.js" defer></script> 
+  <script src="./data/ticket_summary.js" defer></script>
+  <script src="./data/gridsense_timeseries_artifacts.js" defer></script>
+
   <script src="./js/charts.js" defer></script>
   <script src="./js/tabs.js" defer></script>
   <script src="./js/gridsense_card.js" defer></script>
 
-  <style>
-    body {
-      background-color: #020617;
-    }
-    .card {
-      background-color: #0f172a;
-      border: 1px solid #1e293b;
-      border-radius: 1rem;
-      padding: 2rem;
-    }
-    .fade-in {
-      animation: fadeIn 0.4s ease-out forwards;
-      opacity: 0;
-    }
-    @keyframes fadeIn {
-      to {
-        opacity: 1;
-      }
-    }
-  </style>
 </head>
 
-<body class="h-full text-slate-200 font-sans">
+<body class="h-full text-slate-200 font-sans selection:bg-sky-500/30 selection:text-sky-200">
+  
   <header
-    class="border-b border-slate-800 sticky top-0 z-40 bg-bgDark/90 backdrop-blur"
+    class="border-b border-slate-800 sticky top-0 z-50 bg-bgDark/90 backdrop-blur-md supports-[backdrop-filter]:bg-bgDark/60"
   >
     <div
       class="mx-auto px-6 py-4 flex items-center justify-between max-w-7xl"
     >
-      <div class="text-xl font-bold tracking-tight">QOGNUS</div>
-      <nav class="flex gap-8 text-slate-300 text-sm">
-        <a href="#overview" class="hover:text-white">Overview</a>
-        <a href="#cards" class="hover:text-white">Systems</a>
-        <a href="#contact" class="hover:text-white">Contact</a>
+      <div class="flex items-center gap-3">
+        <div class="h-6 w-6 rounded bg-gradient-to-br from-sky-400 to-indigo-500"></div>
+        <div class="text-xl font-bold tracking-tight text-white">QOGNUS</div>
+      </div>
+      
+      <nav class="flex gap-8 text-slate-400 text-sm font-medium">
+        <a href="#overview" class="hover:text-white transition-colors">Overview</a>
+        <a href="#cards" class="hover:text-white transition-colors">Systems</a>
+        <a href="#contact" class="hover:text-white transition-colors">Contact</a>
       </nav>
     </div>
   </header>
 
-  <section id="overview" class="max-w-7xl mx-auto px-6 pt-16 pb-20">
-    <h1
-      class="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6 leading-tight"
-    >
-      Applied AI Systems for Energy, Industry, Cybersecurity,
-      and Beyond.
-    </h1>
-    <p class="text-slate-400 max-w-2xl text-lg">
-      The Qognus Demo Platform illustrates how modern enterprises apply machine
-      learning across telemetry pipelines, security analytics, industrial
-      automation, and large-scale anomaly detection.
-    </p>
+  <section id="overview" class="max-w-7xl mx-auto px-6 pt-20 pb-20">
+    <div class="max-w-3xl fade-in" style="animation-delay: 0.1s;">
+        <h1
+        class="text-5xl md:text-6xl font-bold tracking-tight text-white mb-8 leading-tight"
+        >
+        Applied AI Systems for <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400">Critical Operations</span>.
+        </h1>
+        <p class="text-slate-400 text-xl leading-relaxed">
+        The Qognus Demo Platform illustrates how modern enterprises apply machine
+        learning across telemetry pipelines, security analytics, industrial
+        automation, and large-scale anomaly detection.
+        </p>
+        
+        <div class="mt-10 flex gap-4">
+            <a href="#cards" class="px-6 py-3 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-medium transition-colors border border-slate-700">
+                Explore Systems
+            </a>
+            <a href="https://github.com/qognus" target="_blank" class="px-6 py-3 rounded-full text-slate-400 hover:text-white font-medium transition-colors flex items-center gap-2">
+                View Source <span>&rarr;</span>
+            </a>
+        </div>
+    </div>
   </section>
 
-  <section id="cards" class="max-w-7xl mx-auto px-6 pb-24">
-    <h2 class="text-2xl font-semibold text-white mb-6">Product Systems</h2>
-    <div id="cardContainer" class="space-y-10"></div>
+  <section id="cards" class="max-w-7xl mx-auto px-6 pb-32">
+    <div class="flex items-center gap-4 mb-10 border-b border-slate-800 pb-4 fade-in" style="animation-delay: 0.2s;">
+        <h2 class="text-2xl font-semibold text-white">Active Product Systems</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">All Systems Operational</span>
+    </div>
+    
+    <div id="cardContainer" class="space-y-16">
+        </div>
   </section>
 
-  <footer id="contact" class="border-t border-slate-800 py-10 mt-12">
-    <div class="max-w-7xl mx-auto px-6 text-slate-400 text-sm">
-      <p class="font-semibold text-slate-300">Contact</p>
-      <p class="mt-2">
-        For enterprise demos or partnership discussions, reach out via your
-        usual channels.
-      </p>
+  <footer id="contact" class="border-t border-slate-800 bg-slate-900/30">
+    <div class="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row justify-between gap-10">
+      
+      <div class="max-w-md">
+        <div class="flex items-center gap-2 mb-4">
+            <div class="h-4 w-4 rounded bg-slate-600"></div>
+            <span class="font-bold text-slate-200">QOGNUS</span>
+        </div>
+        <p class="text-slate-500 text-sm leading-relaxed">
+            A fully synthetic, production-style environment for applied AI/ML demos. 
+            Simulated data generated locally via Ollama and physics-based models. 
+            No real customer data used.
+        </p>
+      </div>
+
+      <div class="text-sm text-slate-400">
+        <h4 class="font-semibold text-slate-200 mb-4">Contact</h4>
+        <p class="mb-2 hover:text-white transition-colors cursor-pointer">solutions@qognus.com</p>
+        <p class="mb-2 hover:text-white transition-colors cursor-pointer">github.com/qognus</p>
+        <p class="mt-6 text-xs text-slate-600">
+            &copy; 2025 Qognus Demo Platform. MIT License.
+        </p>
+      </div>
+      
     </div>
   </footer>
 
   <script type="module">
     import { loadAllCards } from "./js/load_cards.js";
 
-    // Load all known components; missing ones will just log a warning.
+    // Load all component cards (GridSense, etc.)
+    // Missing components will just log a warning but not break the page.
     loadAllCards();
   </script>
 </body>
@@ -5446,185 +5367,123 @@ FILE PATH: web\components\gridsense_card.html
 ==================================================
 
 <section
-  class="mt-10 max-w-5xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl"
+  class="mt-10 max-w-6xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl backdrop-blur-sm"
 >
-  <!-- Header -->
-  <div class="flex items-start justify-between gap-6 mb-6">
+  <div class="flex items-start justify-between gap-6 mb-8">
     <div>
       <h3 class="text-2xl font-semibold text-slate-50">
-        GridSense — Anomaly Detection
+        GridSense — Fleet Anomaly Detection
       </h3>
       <p class="mt-1 text-sm text-slate-300 max-w-xl">
-        SCADA-grade, multivariate anomaly detection across substations.
+        Real-time multivariate anomaly detection across the substation fleet.
       </p>
     </div>
 
     <div
-      class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
+      class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
     >
-      <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400"></span>
-      Energy &amp; Utility AI
+      <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      Live Inference
     </div>
   </div>
 
-  <!-- Tabs -->
-  <div data-tab-group="gridsense" class="mt-2">
-    <!-- Tab buttons -->
-    <div
-      class="flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400"
-    >
+  <div data-tab-group="gridsense" class="flex flex-col min-h-[460px]">
+    
+    <div class="flex-none flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400 mb-6">
       <button
         type="button"
-        data-tab="timeseries"
-        class="pb-3 border-b-2 border-sky-500 text-slate-50"
+        data-tab-target="timeseries"
+        class="pb-3 border-b-2 border-sky-500 text-slate-50 transition-colors"
       >
         Timeseries
       </button>
       <button
         type="button"
-        data-tab="embedding"
+        data-tab-target="embedding"
         class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
       >
-        Embedding Space
+        Temporal Radar
       </button>
       <button
         type="button"
-        data-tab="health"
+        data-tab-target="health"
         class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
       >
         Model Health
       </button>
     </div>
 
-    <!-- Timeseries panel -->
-    <div
-      data-tab-panel="timeseries"
-      class="pt-5 space-y-4"
-      data-tab-active
-    >
-      <p class="text-sm text-slate-300 max-w-3xl">
-        Rolling-window anomaly scores over synthetic load telemetry (MW) for a
-        single substation. Peaks indicate deviations in power balance, thermal
-        response, and voltage sag.
-      </p>
-
-      <div
-        class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/70 overflow-hidden"
-      >
-        <!-- The explicit height (h-64 + absolute inset-0) is important so Chart.js
-             has a real drawing area. -->
-        <canvas
-        data-gs-timeseries
-        class="absolute inset-0 w-full h-full"
-        ></canvas>
-
-      </div>
-
-      <p class="mt-2 text-xs text-slate-400">
-        Rolling-window anomaly detection across
-        <span class="font-semibold">16 substations</span>, using
-        physics-informed synthetic SCADA telemetry (load, voltage, current,
-        temperature, frequency). Anomaly scores reflect deviations in power
-        balance, thermal response, and voltage sag behaviour.
-      </p>
-    </div>
-
-    <!-- Embedding space panel -->
-    <div data-tab-panel="embedding" class="hidden pt-5 space-y-4">
-      <p class="text-sm text-slate-300 max-w-3xl">
-        High-dimensional telemetry windows are projected into a 2D/3D manifold.
-        Clusters correspond to stable operating regimes; sparse regions and
-        isolated points highlight emerging failure modes and rare events.
-      </p>
-
-      <div
-        class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/70 flex items-center justify-center"
-      >
-        <p class="text-xs text-slate-500">
-          (Demo placeholder) – this panel can be wired to a real UMAP/HDBSCAN
-          embedding exported from the GridSense pipeline.
+    <div data-tab-content="timeseries" class="flex-1 flex flex-col md:flex-row gap-6 min-h-0 animate-fade-in">
+      
+      <div class="flex-1 flex flex-col min-w-0">
+        <div class="flex-1 relative rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden w-full min-h-[300px]">
+          <div class="absolute inset-0 p-2">
+             <canvas data-gs-timeseries></canvas>
+          </div>
+        </div>
+        <p id="gs-timeseries-footer" class="mt-3 text-xs text-slate-500 flex-none h-5">
+          Select a substation to view telemetry.
         </p>
       </div>
 
-      <ul class="mt-2 text-xs text-slate-400 list-disc list-inside space-y-1">
-        <li>Each point = a multi-minute SCADA window across load &amp; sensors.</li>
-        <li>Colour channels can encode anomaly score, asset type, or region.</li>
-        <li>
-          Used to brief operations teams: “what does ‘normal’ look like across
-          the fleet?”
-        </li>
-      </ul>
-    </div>
-
-    <!-- Model health panel -->
-    <div data-tab-panel="health" class="hidden pt-5 space-y-4">
-      <p class="text-sm text-slate-300 max-w-3xl">
-        Lightweight supervised labels from the synthetic pipeline are used to
-        score anomaly thresholds. This is not a benchmark, but a health check
-        that mirrors how the system behaves on real fleets.
-      </p>
-
-      <div
-        class="grid gap-4 md:grid-cols-3 text-xs text-slate-200 mt-2"
-      >
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
-            Precision (grace window)
-          </p>
-          <p
-            id="gs-metric-precision"
-            class="text-lg font-semibold text-emerald-400"
-          >
-            —
-          </p>
-          <p class="mt-1 text-[0.7rem] text-slate-500">
-            Fraction of raised alerts that coincide with labelled incidents
-            within a configurable time window.
-          </p>
+      <div class="w-full md:w-40 flex flex-col flex-none border-t md:border-t-0 md:border-l border-slate-800 pt-4 md:pt-0 md:pl-4 transition-all">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider">Active Fleet</h4>
+          <span class="text-[0.6rem] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">16</span>
         </div>
-
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
-            Recall (grace window)
-          </p>
-          <p
-            id="gs-metric-recall"
-            class="text-lg font-semibold text-emerald-400"
-          >
-            —
-          </p>
-          <p class="mt-1 text-[0.7rem] text-slate-500">
-            Share of labelled incidents that are caught by the detector with a
-            timely alert.
-          </p>
-        </div>
-
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
-            Fleet anomaly rate
-          </p>
-          <p
-            id="gs-metric-rate"
-            class="text-lg font-semibold text-emerald-400"
-          >
-            —
-          </p>
-          <p class="mt-1 text-[0.7rem] text-slate-500">
-            Percentage of windows flagged as anomalous across the synthetic
-            fleet—used to tune “pager fatigue” vs. coverage.
-          </p>
-        </div>
+        
+        <div 
+          id="gs-substation-list" 
+          class="grid grid-cols-4 sm:grid-cols-8 md:grid-cols-2 gap-1.5 overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent content-start max-h-[350px]"
+        >
+          </div>
       </div>
 
-      <p class="mt-3 text-xs text-slate-400">
-        Metrics above are populated from the demo pipeline’s summary JSON
-        (precision/recall with grace windows, anomaly rate, and optional
-        calibration notes).
-      </p>
     </div>
+
+    <div data-tab-content="embedding" class="hidden flex-1 flex flex-col min-h-0 animate-fade-in">
+      <div class="flex-1 relative rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden w-full min-h-[300px]">
+         <div class="absolute inset-0 p-2">
+            <canvas data-gs-embedding></canvas>
+         </div>
+         <div class="absolute top-2 left-1/2 -translate-x-1/2 text-[0.6rem] font-mono text-slate-600">12:00</div>
+         <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-[0.6rem] font-mono text-slate-600">06:00</div>
+         <div class="absolute left-2 top-1/2 -translate-y-1/2 text-[0.6rem] font-mono text-slate-600">09:00</div>
+         <div class="absolute right-2 top-1/2 -translate-y-1/2 text-[0.6rem] font-mono text-slate-600">03:00</div>
+      </div>
+      <div class="mt-3 flex items-start justify-between gap-4">
+        <p class="text-xs text-slate-500 max-w-2xl">
+          <strong>Cyclical Projection:</strong> Anomalies are plotted on a 12-hour clock face to reveal temporal patterns.
+          <br><span class="opacity-70">Angle = Time of Day &nbsp;|&nbsp; Radius = Severity</span>
+        </p>
+        <div class="text-[0.65rem] font-mono text-slate-600 border border-slate-800 px-2 py-1 rounded bg-slate-900/50 whitespace-nowrap">
+          12h Cycle
+        </div>
+      </div>
+    </div>
+
+    <div data-tab-content="health" class="hidden pt-2 animate-fade-in">
+      <div class="grid gap-4 md:grid-cols-3 text-xs text-slate-200">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Precision</p>
+          <p id="gs-metric-precision" class="text-3xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">True Positives / All Alerts</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Recall</p>
+          <p id="gs-metric-recall" class="text-3xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">Captured Incidents / Total Incidents</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Anomaly Rate</p>
+          <p id="gs-metric-rate" class="text-3xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">Global fleet contamination</p>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
-
 
 ==================================================
 FILE PATH: web\js\charts.js
@@ -5660,94 +5519,459 @@ FILE PATH: web\js\gridsense_card.js
 
 // web/js/gridsense_card.js
 
-// We expose this function globally so load_cards.js can call it 
-// AFTER the HTML is injected.
-window.initGridSense = function () {
-  console.log('[GridSense] Initializing chart...');
-  
-  const canvas =
-    document.querySelector('[data-gs-timeseries]') ||
-    document.getElementById('gsTimeseries');
+let gsChartInstance = null;
+let gsEmbedInstance = null;
 
-  if (!canvas) {
-    console.warn('[GridSense] No timeseries canvas found.');
+const verticalLinePlugin = {
+  id: 'verticalLine',
+  afterDatasetsDraw(chart, args, options) {
+    if (!chart.chartArea || !chart.scales.x) return;
+    const { ctx, chartArea: { top, bottom, right }, scales: { x } } = chart;
+    const lines = options.lines || [];
+    if (lines.length === 0) return;
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.font = 'bold 10px monospace';
+
+    lines.forEach(lineItem => {
+        const { index, color, text } = lineItem;
+        const meta = chart.getDatasetMeta(0);
+        
+        if (index < 0 || index >= meta.data.length) return;
+
+        const xPos = x.getPixelForValue(index);
+        if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) return;
+
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.moveTo(xPos, top);
+        ctx.lineTo(xPos, bottom);
+        ctx.stroke();
+        
+        ctx.fillStyle = color;
+        const textWidth = ctx.measureText(text).width;
+        const padding = 6;
+
+        if (xPos + textWidth + padding > right) {
+            ctx.textAlign = 'right';
+            ctx.fillText(text, xPos - padding, top + 12);
+        } else {
+            ctx.textAlign = 'left';
+            ctx.fillText(text, xPos + padding, top + 12);
+        }
+    });
+    
+    ctx.restore();
+  }
+};
+
+window.initGridSense = function () {
+  console.log('[GridSense] Initializing...');
+
+  if (!window.GRIDSENSE_TIMESERIES) {
+    console.warn('[GridSense] Artifact not found.');
     return;
   }
 
-  if (!window.Chart) {
-    console.warn('[GridSense] Chart.js not loaded.');
-    return;
+  const dataObj = window.GRIDSENSE_TIMESERIES;
+  const series = dataObj.series;
+  const metrics = dataObj.summary;
+
+  const RECENT_WINDOW = 144; // 12 hours
+
+  // 1. Global Time (UTC)
+  let globalMaxTs = 0;
+  if (series.length > 0) {
+      series.forEach(d => {
+          const ts = new Date(d.timestamp).getTime();
+          if (ts > globalMaxTs) globalMaxTs = ts;
+      });
+  }
+  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
+
+  // 2. Aggregate Data
+  const subMap = {};
+
+  series.forEach(d => {
+    if (!subMap[d.substation_id]) {
+        subMap[d.substation_id] = { 
+            id: d.substation_id, 
+            status: 'clean', 
+            maxScore: 0,
+            region: d.region,
+            data: [] 
+        };
+    }
+    const entry = subMap[d.substation_id];
+    entry.data.push(d);
+    
+    if (d.anomaly_score > entry.maxScore) entry.maxScore = d.anomaly_score;
+  });
+
+  // 3. Determine Status
+  Object.values(subMap).forEach(sub => {
+      const anyAnomaly = sub.data.some(d => d.predicted_anomaly === 1);
+      
+      if (anyAnomaly) {
+          const activeAnomaly = sub.data.some(d => {
+              return d.predicted_anomaly === 1 && new Date(d.timestamp).getTime() > cutoffTime;
+          });
+          
+          if (activeAnomaly) {
+              sub.status = 'active'; 
+          } else {
+              sub.status = 'historic'; 
+          }
+      } else {
+          sub.status = 'clean'; 
+      }
+  });
+
+  // 4. Sort
+  const subList = Object.values(subMap).sort((a, b) => {
+      return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  // 5. Render
+  if (subList.length > 0) {
+      const initialSub = subList[0];
+      renderSubstationGrid(subList, initialSub.id, globalMaxTs);
+      renderTimeseries(initialSub.data, initialSub.id, globalMaxTs);
+      renderPseudoEmbedding(series, cutoffTime);
+      updateHealthMetrics(metrics);
+  }
+};
+
+function renderSubstationGrid(subList, activeId, globalMaxTs) {
+    const listContainer = document.getElementById('gs-substation-list');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+
+    subList.forEach(sub => {
+        const isActive = sub.id === activeId;
+        const shortId = sub.id.split('-')[1] || sub.id;
+
+        // CHANGED: Compact styling for narrower column (h-8, smaller text)
+        let baseClass = "h-8 w-full rounded flex items-center justify-center cursor-pointer transition-all duration-200 border relative group";
+        
+        if (isActive) {
+            baseClass += " bg-sky-500/10 border-sky-500 text-sky-100 shadow-[0_0_8px_rgba(14,165,233,0.3)]";
+        } else if (sub.status === 'active') {
+            baseClass += " bg-red-500/10 border-red-500/50 text-red-100 hover:bg-red-500/20";
+        } else if (sub.status === 'historic') {
+            baseClass += " bg-slate-800/80 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-slate-200";
+        } else {
+            baseClass += " bg-slate-800/40 border-slate-800 text-slate-500 hover:bg-slate-800 hover:text-slate-300";
+        }
+
+        const el = document.createElement('div');
+        el.className = baseClass;
+        el.title = `${sub.id} (${sub.region}) - ${sub.status}`;
+        
+        el.onclick = () => {
+            renderSubstationGrid(subList, sub.id, globalMaxTs);
+            renderTimeseries(sub.data, sub.id, globalMaxTs);
+        };
+
+        let dot = '';
+        if (sub.status === 'active') {
+           dot = `<span class="absolute -top-1 -right-1 flex h-2 w-2">
+             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+             <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+           </span>`;
+        } else if (sub.status === 'historic') {
+           dot = `<span class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-slate-500 ring-1 ring-slate-900"></span>`;
+        }
+
+        el.innerHTML = `
+            ${dot}
+            <span class="text-[0.6rem] font-mono font-bold">${shortId}</span>
+        `;
+        
+        listContainer.appendChild(el);
+    });
+}
+
+function renderTimeseries(dataPoints, subId, globalMaxTs) {
+  const canvas = document.querySelector('[data-gs-timeseries]');
+  if (!canvas || !window.Chart) return;
+  
+  if (!dataPoints || dataPoints.length === 0) {
+      if (gsChartInstance) gsChartInstance.destroy();
+      return;
   }
 
   const ctx = canvas.getContext('2d');
+  const windowSize = 150;
+  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
 
-  // --- Demo Data Generation ---
-  const pointsPerHour = 12; // 5-min buckets
-  const hours = 24;
-  const totalPoints = pointsPerHour * hours;
-  const labels = [];
-  const data = [];
-  const now = new Date();
-  const start = new Date(now.getTime() - hours * 60 * 60 * 1000);
+  let startIndex = Math.max(0, dataPoints.length - windowSize);
+  let viewModeText = "Live telemetry";
 
-  for (let i = 0; i < totalPoints; i++) {
-    const t = new Date(start.getTime() + i * 5 * 60 * 1000);
-    const hh = String(t.getHours()).padStart(2, '0');
-    const mm = String(t.getMinutes()).padStart(2, '0');
-    labels.push(`${hh}:${mm}`);
-
-    let v = 0.03 + 0.02 * Math.sin((2 * Math.PI * i) / (pointsPerHour * 6));
-    
-    // Inject incident spikes
-    [4, 11, 18].forEach((h) => {
-      const centerIdx = (h * pointsPerHour) | 0;
-      const dist = Math.abs(i - centerIdx);
-      if (dist < pointsPerHour * 0.8) {
-        const amp = 0.45;
-        const width = pointsPerHour * 0.9;
-        v += amp * Math.exp(-Math.pow(dist, 2) / (2 * Math.pow(width, 2)));
+  let foundIndex = -1;
+  for (let i = dataPoints.length - 1; i >= 0; i--) {
+      if (dataPoints[i].predicted_anomaly === 1) {
+          foundIndex = i;
+          break;
       }
-    });
-
-    v += (Math.random() - 0.5) * 0.02;
-    data.push(Math.max(0, Math.min(1, v)));
   }
 
-  if (canvas._gsChart) canvas._gsChart.destroy();
+  if (foundIndex !== -1) {
+      const anomalyTime = new Date(dataPoints[foundIndex].timestamp).getTime();
+      if (anomalyTime > cutoffTime) {
+          const centerOffset = Math.floor(windowSize / 2);
+          startIndex = Math.max(0, foundIndex - centerOffset);
+          if (startIndex + windowSize > dataPoints.length) {
+              startIndex = Math.max(0, dataPoints.length - windowSize);
+          }
+          const eventTime = new Date(dataPoints[foundIndex].timestamp);
+          const dateStr = eventTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const timeStr = eventTime.toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
+          viewModeText = `Incident review: <span class="text-white">${dateStr} ${timeStr}</span>`;
+      }
+  }
 
-  canvas._gsChart = new Chart(ctx, {
+  const slice = dataPoints.slice(startIndex, startIndex + windowSize); 
+  const labels = slice.map(d => {
+    const date = new Date(d.timestamp);
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const hour = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    return `${month} ${day} ${hour}:${min}`;
+  });
+  
+  const scores = slice.map(d => d.anomaly_score || 0);
+  const anomalyDots = slice.map(d => d.predicted_anomaly === 1 ? (d.anomaly_score || 0) : null);
+
+  const getPointColor = (ctx) => {
+      const i = ctx.dataIndex;
+      const point = slice[i];
+      if (!point) return '#64748b'; 
+      const pointTs = new Date(point.timestamp).getTime();
+      return pointTs > cutoffTime ? '#ef4444' : '#64748b'; 
+  };
+
+  const getSegmentColor = (ctx) => {
+      const i = ctx.p1DataIndex; 
+      const point = slice[i];
+      if (!point || point.predicted_anomaly !== 1) return '#38bdf8'; 
+      const pointTs = new Date(point.timestamp).getTime();
+      return pointTs > cutoffTime ? '#ef4444' : '#64748b'; 
+  };
+
+  const lineMarkers = [];
+  let isAnomalyActive = false;
+
+  slice.forEach((point, index) => {
+      if (point.predicted_anomaly === 1) {
+          if (!isAnomalyActive) {
+              const pointTs = new Date(point.timestamp).getTime();
+              const isRecent = pointTs > cutoffTime;
+              
+              lineMarkers.push({
+                  index: index,
+                  color: isRecent ? '#ef4444' : '#64748b',
+                  text: isRecent ? 'ANOMALY DETECTED' : 'HISTORIC INCIDENT'
+              });
+              isAnomalyActive = true;
+          }
+      } else {
+          isAnomalyActive = false;
+      }
+  });
+
+  if (gsChartInstance) gsChartInstance.destroy();
+
+  gsChartInstance = new Chart(ctx, {
     type: 'line',
+    plugins: [verticalLinePlugin],
     data: {
-      labels,
-      datasets: [{
-        label: 'Anomaly score',
-        data,
-        tension: 0.25,
-        pointRadius: 0,
-        borderWidth: 2,
-        borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56, 189, 248, 0.10)',
-        fill: true
-      }]
+      labels: labels,
+      datasets: [
+        {
+          label: 'Score',
+          data: scores,
+          borderColor: '#38bdf8',
+          borderWidth: 2,
+          segment: { borderColor: getSegmentColor },
+          backgroundColor: (context) => {
+            const chart = context.chart;
+            const {ctx, chartArea} = chart;
+            if (!chartArea) return null;
+            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+            gradient.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
+            gradient.addColorStop(1, 'rgba(56, 189, 248, 0.2)');
+            return gradient;
+          },
+          fill: true,
+          pointRadius: 0,
+          tension: 0.1,
+          order: 2
+        },
+        {
+          label: 'Anomaly',
+          data: anomalyDots,
+          borderColor: getPointColor,
+          backgroundColor: getPointColor,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          showLine: false,
+          order: 1
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { 
+          legend: { display: false },
+          verticalLine: { lines: lineMarkers }
+      },
+      animation: { duration: 0 },
       scales: {
         x: { display: false },
         y: { 
           display: true, 
-          min: 0, max: 1,
-          grid: { color: 'rgba(30, 64, 175, 0.30)' },
-          ticks: { color: '#64748b' }
+          min: 0, 
+          suggestedMax: Math.max(...scores) * 1.1,
+          grid: { color: 'rgba(30, 64, 175, 0.2)' },
+          ticks: { color: '#64748b', font: {size: 10} }
         }
-      },
-      plugins: { legend: { display: false } }
+      }
     }
   });
 
-  console.log('[GridSense] Chart successfully rendered.');
-};
+  const footer = document.getElementById('gs-timeseries-footer');
+  if(footer) footer.innerHTML = `${viewModeText} for <span class="font-mono text-sky-400 font-bold">${subId}</span>.`;
+}
+
+function renderPseudoEmbedding(allSeriesData, cutoffTime) {
+  const canvas = document.querySelector('[data-gs-embedding]');
+  if (!canvas || !window.Chart) return;
+  const ctx = canvas.getContext('2d');
+
+  const anomalies = [];
+  const nominals = [];
+
+  allSeriesData.forEach(d => {
+      const date = new Date(d.timestamp);
+      const dateStr = date.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: false
+      });
+
+      const point = {
+          ...d, 
+          score: d.anomaly_score || 0,
+          isAnom: d.predicted_anomaly === 1,
+          isRecent: new Date(d.timestamp).getTime() > cutoffTime,
+          fullLabel: `[${d.substation_id}] ${dateStr}`
+      };
+      if (point.isAnom) anomalies.push(point);
+      else nominals.push(point);
+  });
+
+  const maxNominals = 800;
+  const step = Math.ceil(nominals.length / maxNominals);
+  const sampledNominals = [];
+  for (let i = 0; i < nominals.length; i += step) {
+      sampledNominals.push(nominals[i]);
+  }
+
+  const finalData = [...sampledNominals, ...anomalies].map(point => {
+      const date = new Date(point.timestamp);
+      
+      const hours = date.getHours() % 12; 
+      const mins = date.getMinutes();
+      const totalMinutes = (hours * 60) + mins;
+      
+      const angle = (totalMinutes / 720) * (2 * Math.PI);
+      
+      let r;
+      if (point.isAnom) {
+          r = 1.0 + (point.score * 4.0); 
+      } else {
+          r = Math.random() * 0.8; 
+      }
+
+      return {
+          x: Math.sin(angle) * r,
+          y: -Math.cos(angle) * r, // Negative Cos to put 12:00 at Top
+          isAnom: point.isAnom,
+          isRecent: point.isRecent,
+          fullLabel: point.fullLabel,
+          statusLabel: point.isAnom ? (point.isRecent ? 'Active Anomaly' : 'Historic Anomaly') : 'Nominal'
+      };
+  });
+
+  const normalSet = finalData.filter(d => !d.isAnom);
+  const activeSet = finalData.filter(d => d.isAnom && d.isRecent);
+  const historicSet = finalData.filter(d => d.isAnom && !d.isRecent);
+
+  if (gsEmbedInstance) gsEmbedInstance.destroy();
+
+  gsEmbedInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { 
+            label: 'Nominal', 
+            data: normalSet, 
+            backgroundColor: '#38bdf8', 
+            pointRadius: 2 
+        },
+        { 
+            label: 'Active Anomaly', 
+            data: activeSet, 
+            backgroundColor: '#ef4444', 
+            pointRadius: 5,
+            pointHoverRadius: 7
+        },
+        { 
+            label: 'Historic Anomaly', 
+            data: historicSet, 
+            backgroundColor: '#64748b', 
+            pointRadius: 3 
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { x: { display: false, min: -6, max: 6 }, y: { display: false, min: -6, max: 6 } },
+      plugins: { 
+          legend: { display: true, labels: { color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+                label: (ctx) => `${ctx.raw.fullLabel} (${ctx.raw.statusLabel})`
+            }
+          }
+      }
+    }
+  });
+}
+
+function updateHealthMetrics(metrics) {
+  const setVal = (id, val, colorClass) => {
+    const el = document.getElementById(id);
+    if(el) {
+        el.innerText = val;
+        el.className = ''; 
+        if(colorClass) el.className = `text-3xl font-bold font-mono ${colorClass}`;
+    }
+  };
+  setVal('gs-metric-precision', (metrics.precision * 100).toFixed(1) + '%', 'text-emerald-400');
+  setVal('gs-metric-recall', (metrics.recall * 100).toFixed(1) + '%', 'text-emerald-400');
+  setVal('gs-metric-rate', (metrics.contamination * 100).toFixed(1) + '%', 'text-sky-400');
+}
 
 ==================================================
 FILE PATH: web\js\load_cards.js
@@ -5755,6 +5979,7 @@ FILE PATH: web\js\load_cards.js
 
 /**
  * web/js/load_cards.js
+ * Loads HTML components and initializes their scripts/tabs.
  */
 
 export async function loadAllCards() {
@@ -5770,24 +5995,29 @@ export async function loadAllCards() {
 
     try {
       const response = await fetch(url);
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const html = await response.text();
+      
+      // Create a wrapper div for the card
       const wrapper = document.createElement("div");
-      wrapper.classList.add("fade-in");
+      wrapper.classList.add("fade-in", "w-full");
       wrapper.innerHTML = html;
 
       container.appendChild(wrapper);
-      console.log(`[Cards] Loaded HTML for ${name}`);
+      console.log(`[Cards] Injected HTML for ${name}`);
       
-      // === NEW LOGIC: Initialize specific card scripts ===
-      if (name === 'gridsense' && window.initGridSense) {
-        window.initGridSense();
-      }
-
-      // Activate tabs for this new card
+      // 1. Initialize Tabs (Critical Step)
       if (window.activateTabs) {
          window.activateTabs(wrapper);
+      } else {
+         console.error("[Cards] window.activateTabs is missing! Check tabs.js");
+      }
+
+      // 2. Initialize Component Logic (Chart drawing)
+      if (name === 'gridsense' && window.initGridSense) {
+        // Short timeout ensures DOM is fully painted before Chart.js tries to grab context
+        setTimeout(() => window.initGridSense(), 50);
       }
       
     } catch (err) {
@@ -5805,20 +6035,70 @@ export async function loadAllCards() {
 FILE PATH: web\js\tabs.js
 ==================================================
 
-function activateTabs(root) {
-    const tabs = root.querySelectorAll(".gs-tab");
-    const panels = root.querySelectorAll(".gs-panel");
+/**
+ * web/js/tabs.js
+ * Handles tab switching for any component with data-tab-group attributes.
+ */
+window.activateTabs = function (rootElement) {
+  // 1. Find all tab groups inside the newly injected element
+  const groups = rootElement.querySelectorAll('[data-tab-group]');
+  
+  if (groups.length === 0) {
+    // Fallback: check if the root itself is the group (sometimes wrapper structure varies)
+    if (rootElement.hasAttribute('data-tab-group')) {
+        bindGroup(rootElement);
+    }
+    return;
+  }
 
-    tabs.forEach(tab => {
-        tab.addEventListener("click", () => {
-            tabs.forEach(t => t.classList.remove("active-tab"));
-            tab.classList.add("active-tab");
+  groups.forEach(group => {
+    bindGroup(group);
+  });
+};
 
-            const id = tab.dataset.tab;
-            panels.forEach(p =>
-                p.classList.toggle("hidden", p.id !== `gs-tab-${id}`)
-            );
+function bindGroup(group) {
+    const buttons = group.querySelectorAll('[data-tab-target]');
+    const contents = group.querySelectorAll('[data-tab-content]');
+
+    if (buttons.length === 0) {
+        console.warn("[Tabs] Found group but no buttons:", group);
+        return;
+    }
+
+    console.log(`[Tabs] Activating ${buttons.length} tabs in group:`, group.getAttribute('data-tab-group'));
+
+    buttons.forEach(btn => {
+      // Remove old listeners to prevent duplicates (if re-initialized)
+      const newBtn = btn.cloneNode(true);
+      btn.parentNode.replaceChild(newBtn, btn);
+
+      newBtn.addEventListener('click', () => {
+        const targetName = newBtn.getAttribute('data-tab-target');
+
+        // 1. Reset all Buttons in this group
+        group.querySelectorAll('[data-tab-target]').forEach(b => {
+          // Remove active styles (blue border, white text)
+          b.classList.remove('border-sky-500', 'text-slate-50');
+          // Add inactive styles
+          b.classList.add('border-transparent', 'hover:text-slate-200');
         });
+
+        // 2. Activate Clicked Button
+        newBtn.classList.remove('border-transparent', 'hover:text-slate-200');
+        newBtn.classList.add('border-sky-500', 'text-slate-50');
+
+        // 3. Toggle Content Panels
+        contents.forEach(content => {
+          if (content.getAttribute('data-tab-content') === targetName) {
+            content.classList.remove('hidden');
+            // Small animation reset
+            content.classList.remove('fade-in');
+            void content.offsetWidth; // trigger reflow
+            content.classList.add('fade-in');
+          } else {
+            content.classList.add('hidden');
+          }
+        });
+      });
     });
 }
-

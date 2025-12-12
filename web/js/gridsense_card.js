@@ -385,7 +385,7 @@ function renderPseudoEmbedding(allSeriesData, cutoffTime) {
 
       return {
           x: Math.sin(angle) * r,
-          y: -Math.cos(angle) * r, // Negative Cos to put 12:00 at Top
+          y: Math.cos(angle) * r, // FIX: Positive Cos to put 12:00 at Top and ensure clockwise rotation
           isAnom: point.isAnom,
           isRecent: point.isRecent,
           fullLabel: point.fullLabel,
