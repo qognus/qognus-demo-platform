@@ -1,0 +1,13 @@
+langchain
+langchain-core
+langchain-community
+langchain-ollama
+pydantic
+pandas
+numpy
+requests
+tqdm
+umap-learn
+hdbscan
+scikit-learn
+pyarrow

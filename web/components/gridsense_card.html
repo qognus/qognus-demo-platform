@@ -1,0 +1,99 @@
+<section
+  class="mt-10 max-w-5xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl backdrop-blur-sm"
+>
+  <div class="flex items-start justify-between gap-6 mb-6">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        GridSense — Anomaly Detection
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-xl">
+        SCADA-grade, multivariate anomaly detection across substations.
+      </p>
+    </div>
+
+    <div
+      class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
+    >
+      <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      Energy &amp; Utility AI
+    </div>
+  </div>
+
+  <div data-tab-group="gridsense" class="mt-2">
+    <div
+      class="flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400"
+    >
+      <button
+        type="button"
+        data-tab-target="timeseries"
+        class="pb-3 border-b-2 border-sky-500 text-slate-50 transition-colors"
+      >
+        Timeseries
+      </button>
+      <button
+        type="button"
+        data-tab-target="embedding"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Embedding Space
+      </button>
+      <button
+        type="button"
+        data-tab-target="health"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Model Health
+      </button>
+    </div>
+
+    <div data-tab-content="timeseries" class="pt-5 space-y-4">
+      <p class="text-sm text-slate-300 max-w-3xl">
+        Real-time anomaly scores over synthetic load telemetry (MW). Notice the stochastic drift and sudden sensor dropout events.
+      </p>
+      <div class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden p-2">
+        <canvas data-gs-timeseries class="w-full h-full"></canvas>
+      </div>
+      <p id="gs-timeseries-footer" class="mt-2 text-xs text-slate-500">
+        Visualization of live telemetry.
+      </p>
+    </div>
+
+    <div data-tab-content="embedding" class="hidden pt-5 space-y-4">
+      <p class="text-sm text-slate-300 max-w-3xl">
+        Projection of multivariate telemetry windows. The central cluster represents nominal operation; outliers indicate emerging failure modes.
+      </p>
+      <div class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/50 overflow-hidden p-2">
+        <canvas data-gs-embedding class="w-full h-full"></canvas>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">
+        <span class="text-sky-400">● Normal</span> vs <span class="text-red-400">● Anomaly</span>
+      </p>
+    </div>
+
+    <div data-tab-content="health" class="hidden pt-5 space-y-4">
+      <p class="text-sm text-slate-300 max-w-3xl">
+        Live evaluation metrics against labeled synthetic ground truth.
+      </p>
+      
+      <div class="grid gap-4 md:grid-cols-3 text-xs text-slate-200 mt-2">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Precision</p>
+          <p id="gs-metric-precision" class="text-2xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">True Positives / All Alerts</p>
+        </div>
+        
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Recall</p>
+          <p id="gs-metric-recall" class="text-2xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">Captured Incidents / Total Incidents</p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">Anomaly Rate</p>
+          <p id="gs-metric-rate" class="text-2xl font-bold text-slate-600 font-mono">--</p>
+          <p class="mt-2 text-[0.7rem] text-slate-500">Global fleet contamination</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

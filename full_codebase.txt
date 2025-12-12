@@ -1,0 +1,5824 @@
+
+==================================================
+FILE PATH: .gitignore
+==================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# UV
+#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#uv.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+#poetry.toml
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
+#   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
+#pdm.lock
+#pdm.toml
+.pdm-python
+.pdm-build/
+
+# pixi
+#   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
+#pixi.lock
+#   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
+#   in the .venv directory. It is recommended not to include this directory in version control.
+.pixi
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.envrc
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+
+# Abstra
+# Abstra is an AI-powered process automation framework.
+# Ignore directories containing user credentials, local state, and settings.
+# Learn more at https://abstra.io/docs
+.abstra/
+
+# Visual Studio Code
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
+#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  you could uncomment the following to ignore the entire vscode folder
+# .vscode/
+
+# Ruff stuff:
+.ruff_cache/
+
+# PyPI configuration file
+.pypirc
+
+# Cursor
+#  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
+#  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
+#  refer to https://docs.cursor.com/context/ignore-files
+.cursorignore
+.cursorindexingignore
+
+# Marimo
+marimo/_static/
+marimo/_lsp/
+__marimo__/
+
+
+==================================================
+FILE PATH: LICENSE
+==================================================
+
+MIT License
+
+Copyright (c) 2025 qognus
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+==================================================
+FILE PATH: README.md
+==================================================
+
+# Qognus Demo Platform  
+*A fully synthetic, production-style environment for applied AI/ML demos*
+
+The **Qognus Demo Platform** is an end-to-end demonstration and experimentation environment built around a fictional hybrid enterprise, **ApexGrid Systems**. It provides realistic synthetic datasets, embedding & clustering pipelines, model-health evaluation, agent workflows, and an interactive WebGL visualization layer.
+
+This project enables safe, compliance-free demonstrations of real enterprise AI concepts across:
+- NLP and text classification  
+- embeddings & vector search  
+- anomaly detection  
+- multi-modal clustering  
+- LLM-based ticket generation  
+- agentic triage workflows  
+- forecasting & operational analytics  
+
+It is suitable for:
+- client proofs of concept  
+- consulting engagements  
+- internal demos and playbooks  
+- technical workshops and conference talks  
+- websites and portfolios  
+- research prototypes  
+
+---
+
+## 🔧 Key Components
+
+### 1. Synthetic Enterprise Environment — ApexGrid Systems
+
+ApexGrid is a fictional mid-to-large hybrid enterprise operating across SaaS, energy utilities, industrial IoT, and cybersecurity.
+
+Products:
+
+- **HelioCloud** — SaaS observability & APM  
+- **GridSense** — energy/utility IoT monitoring  
+- **LineaOps** — manufacturing & robotics telemetry  
+- **VaultShield** — identity & security analytics  
+
+The repository includes documentation describing:
+
+- the product suite  
+- support ticket taxonomy  
+- operational challenges  
+- customer tiers and regions  
+- realistic metadata schema  
+
+This serves as the canonical foundation for all synthetic data and ML pipelines.
+
+---
+
+### 2. Synthetic Data Generation (Local LLM via Ollama)
+
+The `/synthetic` module uses local LLMs (e.g. Qwen, LLaMA via **Ollama**) to generate thousands of fully synthetic support tickets, each including:
+
+- product, category, subcategory  
+- severity and customer tier  
+- environment and region  
+- timestamp  
+- summary and full description  
+- optional LLM-generated topics  
+
+All data is:
+
+- fictional and non-identifying  
+- free from real PII or company names  
+- consistent with the ApexGrid taxonomy  
+
+Main pieces:
+
+- `synthetic/generate_tickets_ollama.py`  
+- prompt templates per product  
+- sample batches for inspection and testing  
+
+---
+
+### 3. Embedding & Clustering Pipeline
+
+Located in `/models/embed` and `/models/cluster`, this pipeline transforms synthetic text into high-dimensional vectors using local embedding models such as:
+
+- `mxbai-embed-large`  
+- `nomic-embed-text`  
+
+It then applies:
+
+- UMAP / t-SNE / PaCMAP for 2D/3D manifolds  
+- HDBSCAN or similar algorithms for semantic clustering  
+- duplicate/near-duplicate detection  
+- cluster labeling and keyword extraction  
+
+Outputs include:
+
+- `ticket_points.js` for WebGL visualizations  
+- `embeddings.npy`  
+- `cluster_labels.npy`  
+
+---
+
+### 4. Model Evaluation / Health Metrics
+
+The `/models/eval` module provides metrics to characterize the embedding and clustering quality, such as:
+
+- silhouette scores  
+- cluster cohesion and separation  
+- cluster stability  
+- topic entropy  
+- severity and category distributions  
+- drift over time  
+- precision@k for duplicate retrieval  
+- cluster purity (when ground-truth labels are used)  
+
+Aggregated outputs are written to:
+
+- `model_health.json`  
+- JavaScript payloads consumed by the web UI  
+
+---
+
+### 5. Interactive Web Visualization (WebGL + Charts)
+
+The `/web` folder contains a standalone visualization layer built with:
+
+- **Three.js** for 3D point clouds  
+- **TailwindCSS** for styling  
+- **Chart.js** for charts  
+- lightweight **Vue.js** state management  
+
+Features:
+
+- 3D embedding view of support tickets  
+- coloring by category, product, or severity  
+- hover tooltips for representative samples  
+- charts for category distribution, severity mix, and volume over time  
+- model-health and cluster-quality summaries  
+
+This layer can be embedded into websites or used standalone for live demos.
+
+---
+
+## 📁 Repository Structure
+
+```text
+qognus-demo-platform/
+│
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── taxonomy/
+│
+├── synthetic/
+│   ├── generate_tickets_ollama.py
+│   ├── prompts/
+│   └── examples/
+│
+├── models/
+│   ├── embed/
+│   ├── cluster/
+│   └── eval/
+│
+├── web/
+│   ├── index.html
+│   ├── js/
+│   ├── css/
+│   └── assets/
+│
+├── docs/
+│   ├── apexgrid_overview.md
+│   ├── product_suite.md
+│   ├── support_taxonomy.md
+│   ├── ml_pipeline_design.md
+│   └── architecture.png
+│
+└── notebooks/
+    ├── 01_generate_synthetic.ipynb
+    ├── 02_embeddings.ipynb
+    ├── 03_clustering.ipynb
+    ├── 04_model_health.ipynb
+    └── 05_visualization_prototyping.ipynb
+````
+
+---
+
+## 🚀 Getting Started
+
+### 1. Install dependencies
+
+#### Python
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Ollama
+
+Install from: [https://ollama.com/download](https://ollama.com/download)
+
+Pull the required models, for example:
+
+```bash
+ollama pull qwen3:8b
+ollama pull mxbai-embed-large
+```
+
+---
+
+### 2. Generate synthetic tickets
+
+```bash
+python synthetic/generate_tickets_ollama.py
+```
+
+This will create a JSONL file of synthetic support tickets under `data/raw/` (or similar, depending on configuration).
+
+---
+
+### 3. Compute embeddings
+
+```bash
+python models/embed/compute_embeddings.py
+```
+
+Embeddings are written to `data/processed/embeddings.npy` and corresponding metadata structures.
+
+---
+
+### 4. Cluster & evaluate
+
+```bash
+python models/cluster/cluster_umap_hdbscan.py
+python models/eval/embedding_health.py
+```
+
+Cluster assignments, manifold coordinates, and evaluation metrics are stored in `data/processed/` and web-ready JS files in `web/data/`.
+
+---
+
+### 5. Launch the web visualization
+
+From the `web` directory:
+
+```bash
+cd web
+python -m http.server 3000
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+in a browser to explore the 3D embedding, charts, and model-health summaries.
+
+---
+
+## 🧠 Intended Use
+
+The Qognus Demo Platform is designed to:
+
+* demonstrate applied AI/ML techniques without real-world data
+* support repeatable, transparent POCs with a consistent synthetic enterprise
+* act as a sandbox for experimenting with embeddings, clustering, and agent workflows
+* provide visually compelling assets for presentations, workshops, and websites
+
+Because all data is synthetic and the enterprise is fictional, it can be safely shared, extended, and adapted.
+
+---
+
+## 🛡 License
+
+MIT – see `LICENSE` for details.
+Suitable for demos, workshops, educational use, and research.
+
+
+==================================================
+FILE PATH: requirements.txt
+==================================================
+
+langchain
+langchain-core
+langchain-community
+langchain-ollama
+pydantic
+pandas
+numpy
+requests
+tqdm
+umap-learn
+hdbscan
+scikit-learn
+pyarrow
+
+
+==================================================
+FILE PATH: docs\apexgrid_overview.md
+==================================================
+
+# **ApexGrid Systems — Enterprise Overview**
+
+*Fictional Hybrid Enterprise for Applied AI/ML Demonstrations*
+
+---
+
+## **1. Introduction**
+
+**ApexGrid Systems** is a fictional mid-to-large hybrid enterprise designed to provide a realistic, safe, and repeatable environment for demonstrating applied AI and machine learning workflows. The company operates across SaaS observability, energy utilities monitoring, industrial IoT, and cybersecurity.
+
+All products, data, and scenarios are entirely synthetic. ApexGrid exists solely to support:
+
+* applied AI/ML proofs of concept
+* embeddings & clustering demos
+* anomaly detection pipelines
+* synthetic support ticket generation
+* forecasting and operational analytics
+* LLM-powered triage and agentic workflows
+* WebGL visualization experiences
+* research and workshop examples
+
+---
+
+## **2. Company Profile**
+
+**Name:** ApexGrid Systems
+**Founded:** 2014
+**Headquarters:** Denver, Colorado
+**Regional Offices:** Toronto, Berlin, Singapore
+**Employees:** ~1,800 (fictional)
+**Annual Revenue:** ~$420M
+**Deployment Footprint:** Hybrid cloud (AWS + GCP) + on-prem edge clusters
+**Target Markets:** Energy utilities, manufacturing, SaaS platforms, enterprise security, logistics, robotics
+
+ApexGrid operates at the intersection of physical operations and digital infrastructure. Its platform products unify telemetry, events, alerts, and identity signals into a single operational view.
+
+This combination makes ApexGrid an ideal “synthetic enterprise” for generating rich, diverse datasets covering:
+
+* textual support cases
+* IoT telemetry
+* operational metrics
+* cybersecurity alerts
+* system events
+
+---
+
+## **3. Product Suite**
+
+ApexGrid has four major platform offerings. Together they produce a realistic distribution of support issues, metadata, and natural cluster patterns for embedding spaces.
+
+---
+
+### **3.1 HelioCloud — SaaS Observability & APM**
+
+A SaaS-based observability platform focused on:
+
+* metrics, logs, and traces
+* SLO dashboards
+* alert routing and deduplication
+* microservice dependency maps
+* incident signatures using ML
+
+**Typical Support Themes:**
+
+* delayed alerts
+* missing metrics in dashboards
+* ingestion pipeline failures
+* flaky agents
+* high cardinality issues
+* API quota enforcement
+
+---
+
+### **3.2 GridSense — Energy & Utilities IoT Monitoring**
+
+A system for monitoring distributed grid assets and substations.
+Supports:
+
+* voltage & frequency anomaly detection
+* SCADA integration
+* predictive maintenance
+* edge gateway management
+
+**Typical Support Themes:**
+
+* telemetry dropouts
+* SCADA desynchronization
+* edge gateway disconnects
+* voltage anomaly false positives
+* firmware version mismatches
+
+---
+
+### **3.3 LineaOps — Industrial & Manufacturing Cloud**
+
+Factory-floor ingestion and robotics telemetry platform:
+
+* PLC (Programmable Logic Controller) integration
+* robotics fleet health
+* conveyor & throughput metrics
+* predictive downtime analysis
+
+**Typical Support Themes:**
+
+* PLC driver failures
+* robot arm offline events
+* rising reject rates
+* throughput anomalies
+* firmware deployment issues
+
+---
+
+### **3.4 VaultShield — Identity & Security Analytics**
+
+A security analytics platform offering:
+
+* identity anomaly detection
+* MFA & SSO monitoring
+* SOC dashboards
+* threat ingestion and classification
+* SIEM (Splunk/Azure/Elastic) integration
+
+**Typical Support Themes:**
+
+* MFA drift or sync failures
+* brute-force false positives
+* failed SSO federations
+* SIEM connector issues
+* noisy threat signatures
+
+---
+
+## **4. Customer Segments**
+
+To create realistic data for embeddings and analytics, ApexGrid defines three fictional customer tiers.
+
+### **4.1 Enterprise Tier**
+
+Large utilities, global manufacturers, Fortune 500 SaaS platforms.
+
+### **4.2 Midmarket Tier**
+
+Regional factories, municipal utilities, logistics firms.
+
+### **4.3 Startup Tier**
+
+Narrow vertical SaaS, robotics startups, energy analytics vendors.
+
+These tiers influence severity, region, SLA expectations, and metadata distributions.
+
+---
+
+## **5. Operational Environment**
+
+ApexGrid products operate across:
+
+* **Environments:** production, staging, sandbox
+* **Regions:** `us-west-2`, `us-east-1`, `eu-central-1`, `ap-southeast-1`
+* **Channels:** email, web portal, Slack, phone transcript
+
+This spread produces a wide range of realistic synthetic ticket metadata.
+
+---
+
+## **6. Support Ticket Taxonomy**
+
+ApexGrid’s synthetic support system uses a structured taxonomy that maps cleanly to semantic embedding clusters.
+
+### **Primary Categories**
+
+* authentication
+* authorization
+* billing
+* latency
+* integration
+* data_quality
+* api_errors
+* telemetry_drop
+* security_alerts
+* observability
+* deployment_failures
+* firmware
+* scaling
+* dashboard_issues
+
+### **Subcategories (Examples)**
+
+* authentication → `MFA_failure`, `SSO_drift`
+* data_quality → `missing_values`, `drift_detected`, `outliers`
+* telemetry_drop → `edge_offline`, `sensor_unreachable`
+* api_errors → `429_rate_limit`, `500_internal`
+* integration → `SCADA_protocol_error`, `PLC_driver_fault`, `SIEM_misconfiguration`
+* security_alerts → `bruteforce_detected`, `anomalous_login`, `malicious_IP`
+
+This taxonomy supports clean ML labeling, clustering, and explainability.
+
+---
+
+## **7. Synthetic Data Strategy**
+
+All ApexGrid data is fully synthetic, generated via:
+
+* local LLMs using **Ollama**
+* structured prompts
+* seeded metadata (severity, product, category, timestamp)
+* consistent domain vocabulary
+* realistic descriptions (3–8 sentences)
+
+The synthetic dataset includes:
+
+* ~10,000 support tickets
+* realistic timestamp sequences
+* category & subcategory patterns
+* severity distributions
+* customer tier metadata
+* environment + region tags
+* optional topic lists
+
+The design encourages natural clusters in embedding spaces.
+
+---
+
+## **8. ML/AI Use Cases Demonstrated**
+
+ApexGrid is intentionally structured to support a wide range of ML applications.
+
+### **8.1 Embeddings & Semantic Search**
+
+* support ticket clustering
+* duplicate detection
+* representative ticket identification
+* emerging issue detection
+
+### **8.2 Topic Modeling & Clustering**
+
+* UMAP/TSNE/PACMAP embeddings
+* HDBSCAN clusters
+* keyword extraction
+* cluster quality metrics
+
+### **8.3 Predictive Analytics**
+
+* support volume forecasting
+* severity drift
+* category trend analysis
+* anomaly classification
+
+### **8.4 LLM Copilot Workflows**
+
+* ticket triage
+* summarization
+* routing suggestions
+* auto-categorization
+* escalation decisioning
+
+### **8.5 Multi-Modal Demonstrations**
+
+Future datasets may include:
+
+* IoT sensor traces
+* cybersecurity alert logs
+* application latency curves
+* change management events
+
+---
+
+## **9. Architecture (Conceptual)**
+
+ApexGrid’s fictional architecture supports multi-product pipelines that mirror real enterprise complexity.
+
+```
+[IoT Sensors / Agents / SCADA / Identity Signals]
+                     │
+              [Edge Gateways]
+                     │
+            [Event & Metric Ingestion]
+                     │
+         [HelioCloud / GridSense / LineaOps / VaultShield]
+                     │
+                [ApexGrid Ops Portal]
+                     │
+              [Support Ticket System]
+                     │
+             [Qognus AI/ML Pipeline]
+    (embeddings → clustering → triage → insights)
+                     │
+            [WebGL & Analytics Dashboards]
+```
+
+This end-to-end structure is perfect for demonstrations.
+
+---
+
+## **10. Purpose of ApexGrid Within the Qognus Demo Platform**
+
+The ApexGrid environment exists to enable:
+
+* safe, compliant synthetic data
+* consistent demos across industries
+* reusable embeddings for multiple POCs
+* visually compelling 3D embeddings
+* realistic ML evaluation metrics
+* agent workflow experimentation
+* replicable client-facing scenarios
+
+It centralizes all synthetic demonstrations behind a single cohesive fictional organization.
+
+---
+
+## **11. Extensibility**
+
+ApexGrid is intentionally modular.
+
+Future additions may include:
+
+* synthetic IoT telemetry for predictive maintenance
+* synthetic identity threat logs
+* synthetic application performance events
+* synthetic billing records
+* synthetic infrastructure topology graphs
+* synthetic conversation transcripts for call-center LLM demos
+
+All can be integrated seamlessly with the current taxonomy and pipeline.
+
+---
+
+## **12. Summary**
+
+ApexGrid Systems is a deliberately versatile hybrid enterprise designed as the core of the **Qognus Demo Platform**.
+It provides a realistic and richly-structured environment that supports:
+
+* LLM data generation
+* embeddings
+* clustering
+* anomaly detection
+* ML evaluation
+* agent workflows
+* visualization demos
+
+All while remaining simple, modular, and entirely synthetic.
+
+ApexGrid is the fictional foundation for any future POC or demonstration involving applied AI.
+
+==================================================
+FILE PATH: docs\architecture.md
+==================================================
+
+# **Qognus Demo Platform — Architecture**
+
+*ApexGrid Systems Synthetic Enterprise & ML Visualization Stack*
+
+---
+
+## 1. Purpose
+
+This document describes the **system architecture** of the Qognus Demo Platform, which provides a fully synthetic environment for experimenting with and demonstrating applied AI/ML techniques on the fictional hybrid enterprise **ApexGrid Systems**.
+
+The architecture covers:
+
+* synthetic data generation
+* ML/embedding pipeline
+* evaluation & metrics
+* static web visualization
+* optional agentic workflows
+
+All components are designed to run on a single developer machine or small server, with no external data dependencies and no real customer information.
+
+---
+
+## 2. High-Level System Overview
+
+At a high level, the system has four main layers:
+
+1. **Synthetic Data Layer**
+
+   * Uses local LLMs (Ollama) to generate ApexGrid support tickets and (optionally) other signals.
+2. **ML & Analytics Layer**
+
+   * Computes embeddings, projections, clusters, and model-health metrics.
+3. **Artifact Layer**
+
+   * Converts ML outputs into web-friendly JSON/JS payloads and charts.
+4. **Visualization & Interaction Layer**
+
+   * Renders a WebGL 3D embedding, charts, and dashboards in a browser.
+
+### 2.1 High-Level Diagram (ASCII)
+
+```text
+           ┌──────────────────────────┐
+           │   Synthetic Data Layer   │
+           │  (LLMs via Ollama)       │
+           └──────────┬───────────────┘
+                      │   JSONL tickets
+                      ▼
+           ┌──────────────────────────┐
+           │   ML & Analytics Layer   │
+           │ embeddings, clustering,  │
+           │ evaluation, metrics      │
+           └──────────┬───────────────┘
+                      │  JS/JSON artifacts
+                      ▼
+           ┌──────────────────────────┐
+           │   Artifact Layer         │
+           │ web-ready JS payloads    │
+           └──────────┬───────────────┘
+                      │  static files
+                      ▼
+           ┌──────────────────────────┐
+           │   Visualization Layer    │
+           │ WebGL + charts (browser) │
+           └──────────────────────────┘
+```
+
+---
+
+## 3. Context: ApexGrid & Qognus Demo Platform
+
+The architecture is built around:
+
+* **ApexGrid Systems**: a fictional hybrid enterprise with four products:
+
+  * HelioCloud (SaaS observability)
+  * GridSense (energy/utility IoT monitoring)
+  * LineaOps (manufacturing & robotics)
+  * VaultShield (identity & security analytics)
+
+* **Qognus Demo Platform**: a set of synthetic data generators, ML pipelines, and visualizations that:
+
+  * showcase applied AI workflows
+  * demonstrate embeddings & clustering
+  * remain fully local and safe for public use
+
+---
+
+## 4. Component Architecture
+
+### 4.1 Synthetic Data Layer
+
+**Primary Role:** Create realistic, taxonomy-aligned ApexGrid support tickets using local LLMs.
+
+**Key Components:**
+
+* `synthetic/generate_tickets_ollama.py`
+
+  * Reads a metadata matrix (product, category, severity, etc.)
+  * Builds structured prompts
+  * Calls Ollama’s `/api/chat` endpoint
+  * Receives JSON tickets and validates them
+
+* `docs/data_generation_design.md`
+
+  * Defines prompting strategy, constraints, and distributions
+
+**Primary Output:**
+
+* `data/raw/apexgrid_tickets.jsonl`
+
+  * One JSON object per line
+  * Matches the schema in `support_taxonomy.md`
+
+### 4.2 ML & Analytics Layer
+
+**Primary Role:** Transform raw tickets to embeddings, clusters, metrics, and visual insights.
+
+**Sub-components:**
+
+1. **Preprocessing & Normalization**
+
+   * Script: `models/embed/compute_embeddings.py`
+   * Tasks:
+
+     * Load JSONL → DataFrame
+     * Normalize schema
+     * Create unified `text` field (summary + description)
+     * Save `tickets.parquet` and metadata
+
+2. **Embeddings**
+
+   * Script (same as above, second part)
+   * Calls Ollama’s `/api/embeddings`:
+
+     * Model examples: `mxbai-embed-large`, `nomic-embed-text`
+   * Produces:
+
+     * `data/processed/embeddings.npy`
+
+3. **Manifold Projection**
+
+   * Script: `models/cluster/cluster_umap_hdbscan.py`
+   * Techniques:
+
+     * UMAP / t-SNE / PaCMAP to project to 3D
+   * Produces:
+
+     * `data/processed/manifold_3d.npy`
+
+4. **Clustering & Topic Extraction**
+
+   * Script: same as above
+   * Algorithm:
+
+     * HDBSCAN (primary)
+   * Produces:
+
+     * `data/processed/cluster_labels.npy`
+     * `data/processed/cluster_summary.json`
+
+5. **Model Health & Metrics**
+
+   * Script: `models/eval/embedding_health.py`
+   * Computes:
+
+     * silhouette score
+     * cluster size distribution
+     * noise fraction
+     * severity distribution
+     * category/product purity
+   * Produces:
+
+     * `data/processed/model_health.json`
+
+---
+
+## 5. Data Flow
+
+### 5.1 Logical Data Flow
+
+```text
+[1] Synthetic Generation
+    - apexgrid_tickets.jsonl
+
+        ↓
+
+[2] Preprocessing
+    - tickets.parquet
+    - ticket_meta.json
+
+        ↓
+
+[3] Embeddings
+    - embeddings.npy
+
+        ↓
+
+[4] Manifold Projection
+    - manifold_3d.npy
+
+        ↓
+
+[5] Clustering & Topics
+    - cluster_labels.npy
+    - cluster_summary.json
+
+        ↓
+
+[6] Evaluation
+    - model_health.json
+
+        ↓
+
+[7] Export for Web
+    - web/data/ticket_points.js
+    - web/data/ticket_summary.js
+```
+
+### 5.2 Mermaid Overview (optional)
+
+You can paste this into a Mermaid-compatible renderer:
+
+```mermaid
+flowchart TD
+    A[Synthetic Tickets<br/>generate_tickets_ollama.py] --> B[Preprocess<br/>tickets.parquet]
+    B --> C[Embeddings<br/>embeddings.npy]
+    C --> D[Manifold Projection<br/>manifold_3d.npy]
+    D --> E[Clustering & Topics<br/>cluster_labels.npy]
+    E --> F[Model Health<br/>model_health.json]
+    F --> G[Web Export<br/>ticket_points.js, ticket_summary.js]
+    G --> H[WebGL & Charts<br/>index.html]
+```
+
+---
+
+## 6. Visualization & Interaction Layer
+
+**Primary Role:** Present the ML outputs in a visually compelling, interactive interface suitable for:
+
+* client demos
+* website sections
+* POCs
+* workshops
+
+**Key Components:**
+
+* `web/index.html`
+
+  * Static HTML entrypoint
+  * Loads:
+
+    * Three.js
+    * TailwindCSS
+    * Chart.js
+    * Vue.js (CDN)
+    * `web/data/ticket_points.js`
+    * `web/data/ticket_summary.js`
+
+* `web/js/embedding_viz.js`
+
+  * Creates a Three.js scene
+  * Plots tickets as 3D points
+  * Colors points by category, product, or severity
+  * Adds interaction (hover info, rotation, zoom)
+
+* `web/js/charts.js`
+
+  * Uses Chart.js to render:
+
+    * severity distributions
+    * category counts
+    * product mix
+    * cluster metrics
+
+* `web/js/tabs.js`
+
+  * Simple tab or mode switching between:
+
+    * 3D embedding
+    * model health view
+    * distributions
+    * cluster insight panels
+
+Deployment is as simple as serving `web/` via a static HTTP server.
+
+---
+
+## 7. Deployment & Runtime Environments
+
+### 7.1 Local Development
+
+Typical local stack:
+
+* OS: Windows / macOS / Linux
+* Python virtual environment
+* Ollama running locally
+* Static HTTP server for the `web` folder
+
+Example commands:
+
+```bash
+# 1. Generate synthetic data
+python synthetic/generate_tickets_ollama.py
+
+# 2. Run embedding pipeline
+python models/embed/compute_embeddings.py
+python models/cluster/cluster_umap_hdbscan.py
+python models/eval/embedding_health.py
+
+# 3. Serve the web app
+cd web
+python -m http.server 3000
+```
+
+Then visit: `http://localhost:3000`.
+
+### 7.2 Optional Containerization
+
+For portability, components can be containerized:
+
+* Container 1: Python ML stack + Ollama client
+* Container 2: Ollama server with models
+* Container 3: Static web server (nginx or similar)
+
+This is not mandatory for demos but can support more advanced environments.
+
+---
+
+## 8. Security & Privacy Considerations
+
+The architecture is intentionally designed so that:
+
+* **All data is synthetic.**
+
+  * No real customers, log lines, or metrics are used.
+* **LLMs run locally via Ollama.**
+
+  * No external calls are required.
+* **No external API keys are needed** for core functionality.
+* **No personal identifiers** should appear in generated text:
+
+  * Enforced via prompting + validation.
+
+This makes the system safe to use in:
+
+* public talks
+* recorded demos
+* shared repositories
+* client-facing materials (with clear “synthetic data” disclaimer)
+
+---
+
+## 9. Extensibility
+
+The architecture is modular. Future extensions can sit naturally alongside existing layers.
+
+### 9.1 Additional Data Modalities
+
+* IoT telemetry time-series for GridSense / LineaOps
+* synthetic identity access logs for VaultShield
+* synthetic application traces and metrics for HelioCloud
+* synthetic billing or usage data for financial modeling
+
+These can feed:
+
+* anomaly detection models
+* forecasting services
+* multi-modal embeddings
+
+### 9.2 Agent & API Layer
+
+A minimal API (e.g., FastAPI/Flask) can sit between ML artifacts and the UI:
+
+* New ticket → embed → nearest neighbors → triage suggestion
+* Cluster exploration → fetch representative tickets → LLM summary
+* Incident detection → highlight clusters with recent spikes
+
+This layer would:
+
+```text
+[Frontend] ⇄ [API: triage, search, incident] ⇄ [Embeddings + Metadata]
+```
+
+### 9.3 Integration with Other Tools
+
+The artifacts can be used in:
+
+* notebooks (exploration, teaching)
+* slide decks (screenshots of 3D embeddings & charts)
+* external dashboards (e.g., Grafana, Superset)
+* other web experiences
+
+---
+
+## 10. Summary
+
+The Qognus Demo Platform architecture:
+
+* starts with **synthetic ApexGrid support tickets**, generated via local LLMs
+* flows through an **ML pipeline** producing embeddings, projections, clusters, and metrics
+* exports into **lightweight JS payloads**
+* renders in a **static, portable WebGL + chart-based UI**
+
+It is:
+
+* self-contained
+* composable
+* reproducible
+* safe for public and client-facing use
+
+This architecture forms the backbone for many future POCs, demos, and applied AI experiments within the Qognus ecosystem.
+
+==================================================
+FILE PATH: docs\data_generation_design.md
+==================================================
+
+# **Synthetic Data Generation Design — Qognus Demo Platform**
+
+*ApexGrid Systems — Support Ticket Generation via Local LLMs (Ollama)*
+
+---
+
+## **1. Purpose & Scope**
+
+This document describes how **synthetic enterprise support tickets** are generated for the fictional hybrid company **ApexGrid Systems** using **local LLMs via Ollama**.
+
+Synthetic tickets serve as the foundation for:
+
+* embeddings
+* clustering
+* topic extraction
+* anomaly detection
+* semantic search
+* triage agent workflows
+* WebGL visualization
+
+The design ensures:
+
+* high-quality, realistic enterprise data
+* zero risk of real PII, customer names, or sensitive content
+* consistent adherence to the ApexGrid taxonomy
+* repeatability and controllability
+* stable vocabulary for embedding clusters
+
+---
+
+# **2. Data Generation Goals**
+
+Synthetic tickets must:
+
+1. **Resemble real enterprise support cases**
+2. **Use consistent domain vocabulary** from the product suite
+3. **Respect the taxonomy** (category + subcategory)
+4. **Produce natural cluster structure** for embeddings
+5. **Include metadata** enabling charts & filters
+6. **Avoid hallucinating real companies, people, or identifiable brands**
+7. **Scale to 5,000–20,000 tickets** without quality collapse
+
+---
+
+# **3. Generation Pipeline Overview**
+
+```text
+[Metadata Matrix]
+    ↓
+[Prompt Builder]
+    ↓
+[Ollama Chat API]
+    ↓
+[JSON Validator]
+    ↓
+[Post-Processor / Normalizer]
+    ↓
+[data/raw/apexgrid_tickets.jsonl]
+```
+
+### Components:
+
+* **Metadata Matrix**
+  Pre-generated combinations of product, category, severity, etc.
+
+* **Prompt Builder**
+  Creates structured prompts for LLM ticket generation.
+
+* **LLM (Ollama)**
+  Local, deterministic-ish generation through system/user messages.
+
+* **JSON Validator**
+  Ensures well-formed JSON; re-requests if invalid.
+
+* **Post-Processor**
+  Applies cleanup, fixes inconsistencies, enforces taxonomy.
+
+* **Output Writer**
+  Appends JSON objects into `.jsonl` for downstream ML pipelines.
+
+---
+
+# **4. Models Used (via Ollama)**
+
+Two local models are recommended:
+
+### **4.1 Primary Ticket Generator**
+
+* **Model:** `qwen2.5:latest` or `qwen2:latest`
+* Why:
+
+  * Best local LLM for structured, long-form enterprise text
+  * Good JSON adherence
+  * Clean domain language
+
+### **4.2 Lightweight Alternative**
+
+* **Model:** `llama3:8b` or `qwen:7b-instruct`
+* Why:
+
+  * Fast for generating large batches
+  * Good JSON compliance with constrained prompts
+
+---
+
+# **5. Metadata Matrix Design**
+
+Goal: generate diverse tickets while controlling distribution.
+
+Structure (`metadata_matrix.csv` or generator):
+
+| product     | category       | subcategory      | severity | customer_tier | region         | environment |
+| ----------- | -------------- | ---------------- | -------- | ------------- | -------------- | ----------- |
+| HelioCloud  | observability  | dashboard_error  | Sev3     | midmarket     | us-west-2      | production  |
+| GridSense   | telemetry_drop | edge_offline     | Sev2     | enterprise    | eu-central-1   | production  |
+| LineaOps    | integration    | PLC_driver_fault | Sev1     | enterprise    | us-east-1      | production  |
+| VaultShield | authentication | MFA_failure      | Sev4     | startup       | ap-southeast-1 | staging     |
+| ...         | ...            | ...              | ...      | ...           | ...            | ...         |
+
+### Key Rules
+
+* Respect product/domain alignment
+* Severity distribution follows guidelines in `support_taxonomy.md`
+* Ensure each product/category pair appears at least 100–300 times
+* Generate 5–10k rows for robust manifold structure
+* Metadata matrix drives ticket diversity, not randomness
+
+---
+
+# **6. Prompt Architecture**
+
+Ticket generation uses **two-layer prompting**: a **system prompt** setting rules and a **user prompt** with metadata for a specific ticket.
+
+---
+
+## **6.1 System Prompt (Global Controls)**
+
+```text
+You are generating fully synthetic enterprise support tickets for a fictional company named ApexGrid Systems.
+
+STRICT RULES:
+- Never reference real companies, people, locations, or brands.
+- Follow the ApexGrid Support Taxonomy exactly.
+- Output ONLY valid JSON objects.
+- Always include: ticket_id, timestamp, product, category, subcategory, severity, customer_tier, region, environment, channel, summary, description, topics.
+- "description" should be 3-8 sentences.
+- Use professional enterprise language.
+- Do NOT include placeholder text.
+- Use terminology consistent with the product domain (HelioCloud, GridSense, LineaOps, VaultShield).
+
+The tickets represent common support issues across cloud observability, energy IoT, manufacturing robotics, and identity security analytics.
+```
+
+---
+
+## **6.2 User Prompt (Per Ticket)**
+
+```text
+Generate ONE synthetic ApexGrid support ticket as JSON.
+
+Use the following metadata exactly:
+
+ticket_id: "{{ticket_id}}"
+product: "{{product}}"
+category: "{{category}}"
+subcategory: "{{subcategory}}"
+severity: "{{severity}}"
+customer_tier: "{{customer_tier}}"
+region: "{{region}}"
+environment: "{{environment}}"
+channel: "{{channel}}"
+
+Focus the summary and description on the product domain and taxonomy definitions.
+Include a list of short topic tags (2-4 items).
+Timestamp should be within the last 30 days.
+```
+
+---
+
+# **7. LLM Output Format**
+
+Expected JSON object:
+
+```json
+{
+  "ticket_id": "TCK-004381",
+  "timestamp": "2025-02-12T03:21:44Z",
+  "product": "HelioCloud",
+  "category": "observability",
+  "subcategory": "missing_log_stream",
+  "severity": "Sev2",
+  "customer_tier": "midmarket",
+  "region": "us-west-2",
+  "environment": "production",
+  "channel": "portal",
+  "summary": "Log stream for container group is missing from dashboard.",
+  "description": "Our engineering team noticed missing logs from the main container group..."
+  ,
+  "topics": ["logs", "agent", "dashboard"]
+}
+```
+
+---
+
+# **8. JSON Validation and Retry Logic**
+
+Tickets must pass validation before being accepted.
+
+Validation checks:
+
+1. JSON loads correctly
+2. All required fields exist
+3. Values comply with taxonomy
+4. Summary is non-empty
+5. Description ~3–8 sentences
+6. Topics is a list
+7. No real PII or unapproved proper nouns
+8. No placeholder content (e.g., "lorem ipsum", "example.com")
+
+### If any validation fails:
+
+* Retry **up to 3 times** with a stricter corrective prompt
+* Track failed items in logs
+
+---
+
+# **9. Post-Processing & Cleanup**
+
+Performed after validation:
+
+### **9.1 Normalization**
+
+* Trim whitespace
+* Canonicalize severity: `Sev1` vs `sev1`
+* Convert region codes to canonical (`us-west-2`, etc.)
+* Strip accidental real brand mentions (fallback filter)
+* Ensure product-specific vocabulary appears
+
+### **9.2 Content Quality Enhancements**
+
+* Confirm summary is short (8–12 words)
+* Confirm description uses product vocabulary
+* Ensure no repetitive or duplicate text
+
+### **9.3 Optional Augmentations**
+
+* Automatically generate topics if missing (small term-frequency cluster)
+* Add `triage_summary` using a compact LLM prompt
+* Embed a sentence containing a measurable indicator (latency, voltage, throughput, etc.)
+
+---
+
+# **10. Ticket Volume & Batching**
+
+Recommended volumes:
+
+| Pipeline Purpose | Ticket Count | Notes                                   |
+| ---------------- | ------------ | --------------------------------------- |
+| Minimal demo     | 500–1,500    | Fast embeddings & UMAP                  |
+| Standard demo    | 3,000–5,000  | Strong cluster density                  |
+| Advanced         | 10,000+      | Best visual separation & topic clusters |
+
+Batch strategy:
+
+* Generate in chunks of 50–200 tickets
+* Checkpoint after each batch
+* Each batch receives a unique timestamp seed to avoid clustering artifacts
+
+---
+
+# **11. Determinism and Reproducibility**
+
+To balance LLM creativity with repeatability:
+
+* Set `temperature: 0.7–0.9` for richness
+* For reproducibility experiments, use `temperature: 0.2–0.4`
+* Persist the metadata matrix
+* Persist all system and user prompts for audit
+* Save each batch’s generation logs under `data/logs/`
+
+---
+
+# **12. Data Quality Management**
+
+### **12.1 Linguistic Quality**
+
+* Minimum sentence length check
+* No contradictions with metadata
+* Product vocabulary matching:
+  e.g., GridSense → SCADA, sensors, voltage, telemetry
+
+### **12.2 Taxonomy Alignment**
+
+* Tickets must match allowed subcategories
+* Cross-product mismatches are rejected:
+
+  * e.g. VaultShield ticket containing `PLC_driver_fault` → invalid
+* Category/subcategory pairs validated against `support_taxonomy.md`
+
+### **12.3 Embedding Health Considerations**
+
+* Avoid overly repetitive phrasing
+* Ensure metadata distributions match guidelines
+* Insert variation via minor stochasticity
+
+---
+
+# **13. Scalability Considerations**
+
+### **13.1 Multi-threading**
+
+Generation can be parallelized:
+
+* One thread per metadata row
+* Or batched parallel calls to Ollama
+* Respect Ollama model loading constraints (usually 1 model active at a time)
+
+### **13.2 Multi-Model Strategy**
+
+To increase diversity:
+
+* Mix models:
+
+  * 70% `qwen2.5:latest`
+  * 30% `llama3:8b`
+
+### **13.3 Long-term Extension**
+
+Future datasets may include:
+
+* synthetic IoT telemetry
+* synthetic identity access logs
+* synthetic SCADA packets
+* synthetic error traces
+* synthetic call-center transcripts
+
+All consistent with the same fictional organization.
+
+---
+
+# **14. Folder Structure**
+
+```
+data_generation/
+│
+├── metadata_matrix.csv
+├── generate_tickets_ollama.py
+├── prompts/
+│   ├── system_prompt.txt
+│   ├── user_prompt_template.txt
+│   └── corrective_prompt.txt
+├── validators/
+│   ├── json_validator.py
+│   ├── taxonomy_validator.py
+│   └── pii_filter.py
+└── logs/
+    ├── batch_0001.log
+    ├── batch_0002.log
+    └── ...
+```
+
+---
+
+# **15. Example Python Code Snippet**
+
+Pseudo-implementation of a batch generator:
+
+```python
+def generate_ticket(metadata):
+    payload = {
+        "model": "qwen2.5:latest",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_user_prompt(metadata)}
+        ]
+    }
+
+    resp = requests.post("http://localhost:11434/api/chat", json=payload)
+    data = extract_json(resp.text)
+
+    if not validate_ticket(data):
+        return retry_with_correction(metadata)
+
+    return clean_ticket(data)
+```
+
+---
+
+# **16. Summary**
+
+The synthetic data generation system:
+
+* Uses **controlled metadata** to ensure domain diversity
+* Uses **structured LLM prompts** to generate realistic text
+* Enforces **taxonomy compliance** and vocabulary consistency
+* Validates JSON and content quality
+* Produces rich unified tickets across four domains
+* Scales to thousands of samples
+* Ensures clean semantic structure for embeddings & clustering
+* Operates **100% locally** with **zero real data**
+
+This system forms the beginning of the full ML pipeline documented in `ml_pipeline_design.md`.
+
+==================================================
+FILE PATH: docs\ml_pipeline_design.md
+==================================================
+
+# **ML Pipeline Design — Qognus Demo Platform**
+
+*Embedding, clustering, evaluation, and visualization for ApexGrid synthetic data*
+
+---
+
+## 1. Purpose & Scope
+
+This document describes the **end-to-end machine learning pipeline** used in the Qognus Demo Platform for the fictional hybrid enterprise **ApexGrid Systems**.
+
+The pipeline supports:
+
+* LLM-based **synthetic support ticket generation**
+* **Text embeddings** for semantic understanding and search
+* **Dimensionality reduction** and **clustering** for 2D/3D visualization
+* **Model health metrics** and cluster-quality evaluation
+* **Web-ready artifacts** (JavaScript payloads) for 3D WebGL and charts
+* Optional **agentic workflows** (routing, triage, summarization)
+
+The design prioritizes:
+
+* reproducibility
+* explainability
+* modular components
+* fully synthetic, non-sensitive data
+* compatibility with local models via **Ollama**
+
+---
+
+## 2. High-Level Architecture
+
+### 2.1 Pipeline Stages
+
+The ML pipeline is organized into the following stages:
+
+1. **Synthetic Ticket Generation** (LLM via Ollama)
+2. **Preprocessing & Normalization**
+3. **Embedding Computation**
+4. **Manifold Projection (2D/3D)**
+5. **Clustering & Topic Extraction**
+6. **Model Health & Evaluation Metrics**
+7. **Artifact Export (for Web UI)**
+8. **Agentic & Triage Workflows** (optional extension)
+
+Visually:
+
+```text
+[LLM Synthetic Tickets]
+        │
+        ▼
+[Preprocess & Normalize]
+        │
+        ▼
+[Text Embeddings]
+        │
+        ├────► [Semantic Search / Duplicate Detection]
+        │
+        ▼
+[Dimensionality Reduction (UMAP/TSNE)]
+        │
+        ▼
+[Clustering (HDBSCAN) & Topics]
+        │
+        ▼
+[Model Health Metrics]
+        │
+        ▼
+[Web Artifacts: JS payloads + charts]
+        │
+        ▼
+[3D WebGL Viz + Dashboards + Agents]
+```
+
+---
+
+## 3. Data Inputs & Outputs
+
+### 3.1 Input: Synthetic Tickets
+
+**Source:** `data/raw/apexgrid_tickets.jsonl` (or similar)
+
+Each line contains a JSON object matching the **ApexGrid Support Ticket Schema**:
+
+* `ticket_id`
+* `timestamp`
+* `product` (HelioCloud, GridSense, LineaOps, VaultShield)
+* `category`, `subcategory`
+* `severity` (Sev1–Sev4)
+* `customer_tier`, `region`, `environment`
+* `channel`
+* `summary`, `description`
+* optional `topics`
+
+Tickets are generated via local models using **Ollama** (see `data_generation_design.md`).
+
+### 3.2 Intermediate Outputs
+
+* `data/processed/tickets.parquet` — normalized DataFrame
+* `data/processed/embeddings.npy` — dense embedding matrix `[N x D]`
+* `data/processed/ticket_meta.json` — metadata per ticket id
+* `data/processed/manifold_3d.npy` — 3D projection `[N x 3]`
+* `data/processed/cluster_labels.npy` — cluster ID per ticket
+* `data/processed/model_health.json` — evaluation metrics
+
+### 3.3 Web Artifacts
+
+Under `web/data/`:
+
+* `ticket_points.js`
+
+  ```js
+  window.TICKET_POINTS = {
+    points: [
+      {
+        id: "TCK-000123",
+        x: 0.23,
+        y: -1.02,
+        z: 1.84,
+        product: "HelioCloud",
+        category: "observability",
+        severity: "Sev2",
+        isP1: false,
+        clusterId: 5
+      },
+      ...
+    ]
+  };
+  ```
+
+* `ticket_summary.js`
+
+  ```js
+  window.TICKET_SUMMARY = {
+    numTickets: 10000,
+    severityDistribution: { "Sev1": 0.03, "Sev2": 0.12, ... },
+    categoryCounts: { "telemetry_drop": 1200, ... },
+    clusterStats: {
+      numClusters: 18,
+      avgSilhouette: 0.42,
+      largestClusterSize: 980,
+      noiseFraction: 0.08
+    }
+  };
+  ```
+
+These are directly consumed by `index.html` and associated JS modules.
+
+---
+
+## 4. Synthetic Ticket Generation (Stage 1)
+
+> Detailed prompting lives in `data_generation_design.md`; here we focus on pipeline integration.
+
+**Implementation:** `synthetic/generate_tickets_ollama.py`
+
+### 4.1 Responsibilities
+
+* Call Ollama’s `/api/chat` with:
+
+  * system prompt describing the schema and domain vocabulary
+  * user prompt containing fixed metadata (product, severity, etc.)
+* Decode and validate the JSON response
+* Enforce compliance with taxonomy and schema
+* Write tickets to JSONL, e.g.:
+
+```json
+{"ticket_id": "TCK-000001", "product": "HelioCloud", "category": "observability", ...}
+```
+
+### 4.2 Design Considerations
+
+* Run in **batches** (e.g., 10–50 tickets at a time) for stability
+* Validate `category`/`subcategory` against `support_taxonomy.md`
+* Ensure no real companies or people are mentioned (prompt-level constraints)
+* Keep `description` length manageable (3–8 sentences) to reduce embedding cost
+
+---
+
+## 5. Preprocessing & Normalization (Stage 2)
+
+**Implementation:** `models/embed/compute_embeddings.py` (first half)
+
+### 5.1 Steps
+
+1. Read JSONL → `pandas.DataFrame`
+
+2. Enforce schema:
+
+   * missing fields filled with defaults
+   * invalid categories dropped or mapped
+
+3. Combine `summary` + `description` into a `text` field:
+
+   ```python
+   df["text"] = df["summary"].fillna("") + " " + df["description"].fillna("")
+   ```
+
+4. Normalize metadata values:
+
+   * severity → `Sev1`, `Sev2`, …
+   * region → canonical codes (`us-west-2`, etc.)
+   * product → one of four known products
+
+5. Optionally filter out extremely short or malformed tickets.
+
+### 5.2 Outputs
+
+* `tickets.parquet`
+* `ticket_meta.json` containing ticket id → metadata mapping
+
+---
+
+## 6. Embedding Computation (Stage 3)
+
+**Implementation:** `models/embed/compute_embeddings.py` (second half)
+**Embedding models:** local via Ollama, e.g.:
+
+* `mxbai-embed-large`
+* `nomic-embed-text`
+
+### 6.1 API Call Pattern
+
+Embedding is done by hitting:
+
+```python
+def get_embedding(text: str) -> list[float]:
+    resp = requests.post(
+        "http://localhost:11434/api/embeddings",
+        json={"model": EMBED_MODEL, "prompt": text}
+    )
+    resp.raise_for_status()
+    return resp.json()["embedding"]
+```
+
+### 6.2 Batch Strategy
+
+* Iterate over `df["text"]`
+* For each ticket:
+
+  * compute embedding vector
+  * append to an array
+* Optionally checkpoint every N tickets
+
+### 6.3 Post-processing
+
+* Store embeddings as `numpy.ndarray` of shape `[N, D]`
+* Save to `data/processed/embeddings.npy`
+* Verify no NaNs; apply standardization (optional):
+
+  ```python
+  from sklearn.preprocessing import StandardScaler
+  scaler = StandardScaler()
+  embeddings_scaled = scaler.fit_transform(embeddings)
+  ```
+
+---
+
+## 7. Manifold Projection (Stage 4)
+
+**Implementation:** `models/cluster/cluster_umap_hdbscan.py` (first part)
+
+The goal here is to map high-dimensional embeddings into a **3D space** for WebGL, and optionally a 2D space for charts.
+
+### 7.1 Algorithms
+
+* Primary: **UMAP** (`umap-learn`)
+* Alternative: **t-SNE** or PaCMAP for experimentation
+
+Example (UMAP 3D):
+
+```python
+import umap
+reducer = umap.UMAP(
+    n_components=3,
+    n_neighbors=30,
+    min_dist=0.1,
+    metric="cosine",
+    random_state=42,
+)
+manifold_3d = reducer.fit_transform(embeddings_scaled)
+```
+
+### 7.2 Normalization for WebGL
+
+After projection:
+
+```python
+max_abs = max(abs(manifold_3d).max(), 1e-6)
+manifold_3d_norm = manifold_3d / max_abs * 3.0  # roughly within cube [-3, 3]^3
+```
+
+Save:
+
+* `data/processed/manifold_3d.npy`
+
+---
+
+## 8. Clustering & Topic Extraction (Stage 5)
+
+**Implementation:** `models/cluster/cluster_umap_hdbscan.py` (second part)
+
+### 8.1 Clustering
+
+Primary algorithm: **HDBSCAN**
+
+```python
+import hdbscan
+
+clusterer = hdbscan.HDBSCAN(
+    min_cluster_size=30,
+    min_samples=10,
+    metric="euclidean",
+    cluster_selection_epsilon=0.05,
+)
+labels = clusterer.fit_predict(manifold_3d)
+```
+
+Characteristics:
+
+* `labels[i] == -1` → noise / unassigned
+* Remaining labels cluster tickets into semantically related groups
+
+Save:
+
+* `cluster_labels.npy`
+
+### 8.2 Cluster Summaries & Topic Hints
+
+For each cluster:
+
+1. Collect all tickets with that label
+2. Extract top keywords using TF–IDF or a simple term-frequency approach
+3. Store representative words + counts
+
+Optional: use an LLM to give each cluster a human-readable label:
+
+```text
+Cluster 5: "SCADA time synchronization drift across multiple substations."
+Cluster 9: "VaultShield MFA false positives and throttling complaints."
+```
+
+Summaries stored into:
+
+* `data/processed/cluster_summary.json`
+
+---
+
+## 9. Model Health & Evaluation Metrics (Stage 6)
+
+**Implementation:** `models/eval/embedding_health.py`
+
+The goal is to quantify the quality and behavior of the embedding + clustering.
+
+### 9.1 Core Metrics
+
+* **Silhouette Score**
+
+  ```python
+  from sklearn.metrics import silhouette_score
+  valid_mask = labels != -1
+  if valid_mask.sum() > 1:
+      sil = silhouette_score(manifold_3d[valid_mask], labels[valid_mask])
+  else:
+      sil = None
+  ```
+
+* **Cluster Size Distribution**
+
+  * Histogram of size per cluster
+  * Fraction of points in noise
+
+* **Category & Product Purity**
+
+  * For each cluster, compute the distribution of:
+
+    * `product`
+    * `category`
+
+* **Severity Distribution**
+
+  * Weighted distribution across clusters
+  * Fraction of Sev1 concentrated in particular clusters
+
+### 9.2 Optional Retrieval Metrics
+
+For duplicate or near-duplicate detection:
+
+* Build approximate nearest neighbor index (e.g. FAISS or sklearn NearestNeighbors)
+* Evaluate **precision@k** for retrieving tickets with identical (or similar) `category` + `subcategory`
+
+Example:
+
+```python
+from sklearn.neighbors import NearestNeighbors
+
+nn = NearestNeighbors(n_neighbors=6, metric="cosine").fit(embeddings_scaled)
+distances, indices = nn.kneighbors(embeddings_scaled)
+# For each ticket, ignore itself (index 0), inspect neighbors 1..5
+```
+
+### 9.3 Output Structure
+
+Write results as `model_health.json`:
+
+```json
+{
+  "numTickets": 10000,
+  "numClusters": 18,
+  "noiseFraction": 0.08,
+  "avgSilhouette": 0.42,
+  "largestClusterSize": 980,
+  "categoryPurityByCluster": {
+    "0": {"telemetry_drop": 0.74, "data_quality": 0.12, "other": 0.14},
+    "1": {"observability": 0.89, "latency": 0.07, "other": 0.04}
+  },
+  "severityDistribution": {
+    "Sev1": 0.03,
+    "Sev2": 0.12,
+    "Sev3": 0.40,
+    "Sev4": 0.45
+  }
+}
+```
+
+---
+
+## 10. Artifact Export for Web UI (Stage 7)
+
+**Implementation:** usually part of clustering/eval scripts or a dedicated exporter, e.g. `models/eval/export_web_artifacts.py`.
+
+### 10.1 ticket_points.js
+
+Combine:
+
+* `ticket_id`
+* normalized 3D coordinates
+* cluster label
+* selected metadata fields
+
+Example snippet:
+
+```python
+import json
+import numpy as np
+from pathlib import Path
+
+def export_ticket_points(df, coords_3d, labels, out_path):
+    points = []
+    for i, row in df.iterrows():
+        x, y, z = coords_3d[i].tolist()
+        points.append({
+            "id": row["ticket_id"],
+            "x": float(x),
+            "y": float(y),
+            "z": float(z),
+            "product": row["product"],
+            "category": row["category"],
+            "severity": row["severity"],
+            "clusterId": int(labels[i]),
+            "isP1": row["severity"] == "Sev1"
+        })
+
+    out = {
+        "points": points
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        f.write("window.TICKET_POINTS = ")
+        json.dump(out, f)
+        f.write(";\n")
+```
+
+### 10.2 ticket_summary.js
+
+Aggregate high-level metrics + distributions for charts:
+
+```python
+summary = {
+  "numTickets": int(len(df)),
+  "severityDistribution": severity_dist,
+  "categoryCounts": category_counts,
+  "productCounts": product_counts,
+  "clusterStats": {
+    "numClusters": num_clusters,
+    "avgSilhouette": sil,
+    "noiseFraction": noise_fraction
+  }
+}
+```
+
+Write:
+
+```python
+with open("web/data/ticket_summary.js", "w", encoding="utf-8") as f:
+    f.write("window.TICKET_SUMMARY = ")
+    json.dump(summary, f)
+    f.write(";\n")
+```
+
+---
+
+## 11. Agentic & Triage Workflows (Stage 8 – Optional)
+
+Beyond visualization, the same embedding + clustering setup can power **agent-style workflows**:
+
+### 11.1 Triage Agent
+
+* Inputs: new ticket text
+* Steps:
+
+  1. Embed the ticket
+  2. Find nearest neighbors
+  3. Infer likely category, severity, and product
+  4. Propose:
+
+     * suggested category/subcategory
+     * similar past tickets
+     * recommended resolution steps
+  5. Optionally call an LLM to generate a triage summary
+
+### 11.2 Incident Signature Detection
+
+* Monitor cluster sizes over time
+* Identify clusters whose ticket count spikes over a window (e.g., last 24/72 hours)
+* Trigger a “potential incident” alert for that cluster
+
+### 11.3 Integration with Web UI
+
+* Provide an API or local endpoint that:
+
+  * takes free-text
+  * returns:
+
+    * 3D location
+    * nearest existing points
+    * recommended cluster
+    * triage suggestion
+
+This can be demoed from the browser using a local backend.
+
+---
+
+## 12. Tech Stack Overview
+
+### 12.1 Backend / ML
+
+* **Python 3.x**
+* `pandas` / `numpy`
+* `scikit-learn` (UMAP, TSNE via separate package, metrics)
+* `umap-learn`
+* `hdbscan`
+* `requests` (for Ollama calls)
+* Optional: `faiss` or similar for ANN
+
+### 12.2 Data & Artifacts
+
+* JSONL for raw data
+* Parquet / NPY / JSON for processed artifacts
+* JS globals for web integration (no backend needed for demo)
+
+### 12.3 Frontend
+
+* **Three.js** for 3D scatterplot
+* **TailwindCSS** for layout and styling
+* **Chart.js** for charts
+* **Vue.js (CDN)** for light state management
+* `index.html` served via simple static hosting or `python -m http.server`
+
+---
+
+## 13. Operational Considerations
+
+### 13.1 Batch vs. Real-Time
+
+* The current design is **batch-oriented**:
+
+  * Generate tickets
+  * Recompute embeddings
+  * Re-run manifold & clustering
+  * Export web artifacts
+
+* For real-time or incremental demos, lighter-weight incremental updates could be implemented (e.g., partial embedding + local re-clustering for new tickets), but this is out of scope for the initial design.
+
+### 13.2 Reproducibility
+
+* Fix random seeds:
+
+  * UMAP / TSNE random state
+  * HDBSCAN randomness, if applicable
+* Version file formats and schema in documentation
+* Optionally log runs (e.g., using MLflow or simple JSON run logs)
+
+---
+
+## 14. Summary
+
+The Qognus Demo Platform’s ML pipeline for ApexGrid Systems:
+
+* takes fully synthetic, LLM-generated support tickets
+* converts them into dense embeddings suitable for
+
+  * semantic search
+  * clustering
+  * visualization
+* projects them into 3D for a **WebGL point cloud** that is:
+
+  * semantically structured
+  * visually compelling
+  * easily explainable
+* evaluates embedding and cluster quality with interpretable metrics
+* exposes artifacts to a static frontend for demos, POCs, and workshops
+* can be extended with triage agents, semantic search, and incident detection
+
+This design makes ApexGrid an ideal synthetic “playground” for applied AI/ML in consulting, research, and product storytelling.
+
+==================================================
+FILE PATH: docs\product_suite.md
+==================================================
+
+# **ApexGrid Product Suite**
+
+*Foundational fictional products for synthetic data generation & applied AI/ML demonstrations*
+
+---
+
+## **Overview**
+
+ApexGrid Systems offers four major fictional platform products, each designed to mimic the diversity and complexity of real-world enterprise technology stacks. Together, they create a rich environment for LLM-generated support data, ML clustering, anomaly detection, and interactive visualization.
+
+The product suite spans:
+
+* SaaS observability
+* energy & utility IoT telemetry
+* industrial manufacturing operations
+* identity & cybersecurity analytics
+
+These domains were chosen because they produce **distinct natural language patterns**, **unique incident categories**, and **realistic ML use cases**—ideal for synthetic tickets, manifold embeddings, cluster separations, and topic modeling.
+
+---
+
+# **1. HelioCloud — SaaS Observability & Application Monitoring**
+
+## **1.1 Product Summary**
+
+**HelioCloud** is ApexGrid’s cloud-native observability platform, comparable to modern APM (Application Performance Monitoring) solutions. It provides monitoring and diagnostics across microservices, containers, event streams, and distributed systems.
+
+Designed for high-growth SaaS and enterprise application teams, HelioCloud consolidates operational signals into a unified interface.
+
+## **1.2 Core Capabilities**
+
+* **Metrics & time-series monitoring** (CPU, memory, latency, queue depth)
+* **Log ingestion & enrichment**
+* **Distributed tracing** (OpenTelemetry native)
+* **SLO dashboards & burn rate alerts**
+* **Predictive incident signatures** using ML
+* **Service dependency mapping**
+* **Alerting & policy routing**
+
+## **1.3 Common Support Issues (synthetic)**
+
+These drive synthetic ticket generation:
+
+* alert delays
+* missing metrics
+* 500 error spikes
+* trace sampling misconfiguration
+* log ingestion pipeline failures
+* agent version mismatches
+* dashboard rendering bugs
+* noisy or duplicate alerts
+* API rate-limit errors (429)
+
+## **1.4 Metadata Patterns**
+
+* Severity: Sev2–Sev4
+* Customers: SaaS engineering teams
+* Regions: globally distributed
+* Channel: web portal or Slack
+
+These create natural clusters in embeddings (observability-focused vocabulary, alert patterns, etc.).
+
+---
+
+# **2. GridSense — Energy & Utilities IoT Monitoring**
+
+## **2.1 Product Summary**
+
+**GridSense** monitors distributed IoT sensors across the electrical grid—transformers, substations, meters, and edge energy devices. It’s designed for utility providers and energy operators requiring real-time situational awareness.
+
+GridSense represents large physical infrastructure + IoT edge environments, generating extremely distinctive support narratives.
+
+## **2.2 Core Capabilities**
+
+* **Voltage & frequency anomaly detection**
+* **Grid load monitoring**
+* **SCADA integration (IEC 61850, DNP3)**
+* **Edge gateway management**
+* **Predictive maintenance**
+* **Substation telemetry aggregation**
+* **Power quality analytics**
+
+## **2.3 Common Support Issues (synthetic)**
+
+* telemetry dropouts
+* SCADA desynchronization
+* sensor calibration drift
+* false-positive voltage anomalies
+* edge gateway offline
+* firmware compatibility issues
+* time sync failures (PTP/NTP)
+* IoT packet loss
+* relay misconfiguration
+
+## **2.4 Metadata Patterns**
+
+* Severity: Sev1–Sev3
+* Customers: utilities, energy operators
+* Regions: geographically clustered deployments
+* Channel: email or phone transcript
+
+These produce long, technically descriptive tickets—excellent for embeddings and clustering separation.
+
+---
+
+# **3. LineaOps — Industrial Manufacturing & Robotics Cloud**
+
+## **3.1 Product Summary**
+
+**LineaOps** is ApexGrid’s industrial operations platform, focused on factory IoT ingestion, robotics telemetry, and throughput analytics. It powers continuous monitoring and predictive failure detection on manufacturing floors.
+
+LineaOps represents real-world industrial ML domains: robotics, PLC drivers, throughput signals, automation pipelines.
+
+## **3.2 Core Capabilities**
+
+* **PLC driver integration (OPC-UA, Modbus)**
+* **Robotics fleet monitoring**
+* **Conveyor metrics & throughput analytics**
+* **Predictive downtime modeling**
+* **Workcell anomaly detection**
+* **Firmware orchestration**
+* **Operator dashboards**
+
+## **3.3 Common Support Issues (synthetic)**
+
+* PLC driver failures
+* robot arm offline
+* rising reject rates
+* conveyor jitter
+* throughput anomalies
+* firmware update failures
+* sensor misalignment
+* latency spikes in workcell loops
+* robotics collision safety warnings
+
+## **3.4 Metadata Patterns**
+
+* Severity: Sev1–Sev4
+* Customers: manufacturing plants, robotics integrators
+* Regions: local clusters per factory site
+* Channel: portal or phone
+
+These create a vocabulary-rich domain (PLC tags, robotics terminology, industrial process words) that clusters distinctly from SaaS or energy tickets.
+
+---
+
+# **4. VaultShield — Identity Security & Threat Analytics**
+
+## **4.1 Product Summary**
+
+**VaultShield** provides identity-centric threat detection and behavioral analytics for enterprise security teams. It focuses on authentication flows, MFA, SSO, anomaly detection, and SOC alert triage.
+
+VaultShield gives the dataset a **cybersecurity and identity-themed ticket class**, crucial for embeddings that show clean cluster boundaries.
+
+## **4.2 Core Capabilities**
+
+* **Behavioral identity anomaly detection**
+* **MFA & SSO monitoring**
+* **Threat alert correlation**
+* **Suspicious login event detection**
+* **SIEM integration** (Splunk, Elastic, Azure Sentinel)
+* **Zero-Trust access scoring**
+* **Automated incident playbooks**
+
+## **4.3 Common Support Issues (synthetic)**
+
+* false-positive brute-force alerts
+* MFA drift
+* SSO federation failures
+* suspicious IP false alarms
+* SIEM connector issues
+* noisy authentication logs
+* OAuth token misconfiguration
+* RBAC permission mismatch
+* anomalous login spikes
+
+## **4.4 Metadata Patterns**
+
+* Severity: Sev2–Sev4
+* Customers: SOC teams, security analysts
+* Regions: global with compliance constraints
+* Channel: portal or email
+
+These tickets tend to be short, high-frequency, and repeated, excellent for demonstrating duplicate detection and semantic clustering.
+
+---
+
+# **5. Cross-Product Interaction Scenarios**
+
+Because ApexGrid is hybrid, many synthetic tickets can reflect cross-product interactions, ideal for embeddings:
+
+### **Examples**
+
+* HelioCloud alert spikes caused by LineaOps device overload
+* GridSense sensor outages causing anomalous identity logins (VaultShield)
+* LineaOps firmware pushes misaligned with HelioCloud agents
+* VaultShield SSO failures tied to HelioCloud API availability
+
+These “multi-product incident chains” provide:
+
+* naturally interesting ML clusters
+* cross-domain vocabulary
+* realistic multi-factor root causes
+* opportunities for agent-based triage workflows
+
+---
+
+# **6. Product-Specific Data Signatures (for ML)**
+
+Each product creates special linguistic and structural patterns in synthetic text.
+
+### **HelioCloud**
+
+* microservice language
+* latency metrics
+* dashboards and alerts
+* developer-focused vocabulary → tight textual clusters
+
+### **GridSense**
+
+* SCADA terminology
+* IoT device IDs
+* edge gateways
+* field conditions → broader clusters, more variance
+
+### **LineaOps**
+
+* robotics terminology
+* PLC codes
+* throughput signals → dense clusters with repeated patterns
+
+### **VaultShield**
+
+* authentication flow terms
+* MFA/SSO
+* IP reputation language → short, frequent clusters
+
+These properties help create visually compelling and interpretable embedding manifolds.
+
+---
+
+# **7. Extensibility**
+
+Products are modular and can easily be expanded to support:
+
+* synthetic IoT sensor streams
+* synthetic SCADA logs
+* synthetic access logs
+* synthetic APM tracing spans
+* synthetic security alerts
+* synthetic cloud costs or billing events
+* synthetic firmware release notes
+* synthetic call-center transcripts
+
+This ensures the product suite can evolve in any direction required by specific POCs or demonstrations.
+
+---
+
+# **8. Summary**
+
+The **ApexGrid Systems Product Suite** provides four deeply differentiated domains—SaaS observability, energy IoT monitoring, manufacturing/robotics operations, and identity security.
+
+Each product is purpose-designed to produce:
+
+* rich synthetic support tickets
+* distinct natural language clusters
+* realistic operational metadata
+* diverse ML behaviors (topic drift, severity trends, duplicate detection)
+* meaningful 3D embedding structures
+
+This suite is the backbone for synthetic enterprise demonstrations across the Qognus Demo Platform.
+
+==================================================
+FILE PATH: docs\support_taxonomy.md
+==================================================
+
+# **ApexGrid Support Ticket Taxonomy**
+
+*Unified schema for synthetic ticket generation, embeddings, clustering & triage workflows*
+
+---
+
+## **1. Introduction**
+
+This document defines the official **Support Ticket Taxonomy** for ApexGrid Systems.
+The taxonomy is designed to:
+
+* produce realistic synthetic support tickets
+* drive clear 2D/3D semantic embedding clusters
+* provide consistent metadata for evaluation
+* support downstream ML tasks such as routing, topic modeling, and duplicate detection
+* reflect the hybrid nature of ApexGrid’s product suite
+
+All categories, subcategories, and metadata fields are fictional and safe for open-source use.
+
+---
+
+# **2. Ticket Data Model**
+
+Every synthetic ticket conforms to the following schema:
+
+| Field           | Type         | Description                                          |
+| --------------- | ------------ | ---------------------------------------------------- |
+| `ticket_id`     | string       | Unique ticket identifier                             |
+| `timestamp`     | ISO8601      | Creation time                                        |
+| `product`       | enum         | One of: HelioCloud, GridSense, LineaOps, VaultShield |
+| `category`      | enum         | High-level issue area                                |
+| `subcategory`   | enum         | More specific issue subtype                          |
+| `severity`      | enum         | Sev1–Sev4                                            |
+| `customer_tier` | enum         | enterprise, midmarket, startup                       |
+| `region`        | enum         | us-west-2, us-east-1, eu-central-1, ap-southeast-1   |
+| `environment`   | enum         | production, staging, sandbox                         |
+| `channel`       | enum         | email, portal, slack, phone                          |
+| `summary`       | string       | Short description                                    |
+| `description`   | string       | Full natural-language body                           |
+| `topics`        | list<string> | Optional LLM-generated topic hints                   |
+
+This structure ensures strong ML signal while remaining flexible.
+
+---
+
+# **3. Category Overview (Top-Level)**
+
+ApexGrid uses 14 top-level categories spanning SaaS, energy, industrial, and security domains.
+
+These drive major cluster separations in embeddings.
+
+---
+
+## **3.1 authentication**
+
+Issues related to user login, MFA, or identity lifecycle.
+
+**Examples**
+
+* MFA_failure
+* SSO_drift
+* password_reset_loop
+* oauth_token_expired
+* unexpected_logout
+
+**Products:** VaultShield, HelioCloud
+
+---
+
+## **3.2 authorization**
+
+RBAC, permissions, and access policy errors.
+
+**Examples**
+
+* permission_denied
+* role_mismatch
+* policy_conflict
+* API_scope_invalid
+
+**Products:** VaultShield, HelioCloud
+
+---
+
+## **3.3 billing**
+
+Financial and usage-related issues.
+
+**Examples**
+
+* invoice_discrepancy
+* overage_dispute
+* credit_allocation
+* subscription_tier_mismatch
+
+**Products:** HelioCloud
+
+---
+
+## **3.4 latency**
+
+Performance or response time degradation.
+
+**Examples**
+
+* p95_spike
+* slow_dashboard_render
+* trace_latency_regression
+* edge_roundtrip_high
+
+**Products:** HelioCloud, LineaOps, GridSense
+
+---
+
+## **3.5 integration**
+
+Failures in third-party or internal system connectors.
+
+**Examples**
+
+* SIEM_connector_failed
+* SCADA_protocol_error
+* PLC_driver_fault
+* SSO_integration_error
+* webhook_delivery_failed
+
+**Products:** All, but domain varies
+
+* LineaOps → PLC/OPC-UA
+* GridSense → SCADA
+* VaultShield → SIEM/SSO
+* HelioCloud → webhook/API
+
+---
+
+## **3.6 data_quality**
+
+Issues related to data correctness, completeness, or drift.
+
+**Examples**
+
+* missing_values
+* schema_mismatch
+* drift_detected
+* metric_cardinality_explosion
+* timestamp_skew
+
+**Products:** All
+
+---
+
+## **3.7 api_errors**
+
+Errors surfaced via API calls.
+
+**Examples**
+
+* rate_limit_429
+* internal_500
+* auth_failed_401
+* payload_too_large
+* malformed_request
+
+**Products:** HelioCloud, VaultShield
+
+---
+
+## **3.8 telemetry_drop**
+
+Loss of sensor, agent, or device data.
+
+**Examples**
+
+* sensor_unreachable
+* edge_offline
+* gateway_loss
+* backlog_spike
+* ingestion_gap
+
+**Products:** GridSense, LineaOps, HelioCloud (agent data)
+
+---
+
+## **3.9 security_alerts**
+
+Threat or identity events that triggered analytical modules.
+
+**Examples**
+
+* bruteforce_detected
+* anomalous_login
+* malicious_IP
+* impossible_travel
+* MFA_bypass_suspected
+
+**Products:** VaultShield
+
+---
+
+## **3.10 observability**
+
+Dashboards, logs, traces, metrics, and alerting.
+
+**Examples**
+
+* missing_log_stream
+* dashboard_error
+* alert_deduping_failed
+* trace_sampling_bug
+
+**Products:** HelioCloud
+
+---
+
+## **3.11 deployment_failures**
+
+Issues with pushing configuration, firmware, or software updates.
+
+**Examples**
+
+* canary_failed
+* rollout_aborted
+* edge_firmware_timeout
+* agent_upgrade_failed
+* PLC_update_incomplete
+
+**Products:** LineaOps, GridSense, HelioCloud
+
+---
+
+## **3.12 firmware**
+
+Hardware-level compatibility issues.
+
+**Examples**
+
+* version_mismatch
+* checksum_failure
+* hardware_cap_exceeded
+* unsupported_firmware
+
+**Products:** LineaOps, GridSense
+
+---
+
+## **3.13 scaling**
+
+Problems with workload capacity or autoscaling mechanisms.
+
+**Examples**
+
+* autoscaler_unresponsive
+* pod_eviction_spike
+* storage_saturation
+* scaling_policy_conflict
+
+**Products:** HelioCloud
+
+---
+
+## **3.14 dashboard_issues**
+
+User-interface or visualisation-related errors.
+
+**Examples**
+
+* widget_failure
+* stale_chart
+* incorrect_units
+* access_denied_in_ui
+
+**Products:** HelioCloud, VaultShield
+
+---
+
+# **4. Subcategory Dictionary**
+
+Below is the consolidated mapping:
+
+```
+authentication:
+  - MFA_failure
+  - SSO_drift
+  - oauth_token_expired
+  - unexpected_logout
+  - credential_validation_error
+
+authorization:
+  - permission_denied
+  - role_mismatch
+  - policy_conflict
+  - invalid_scope
+
+billing:
+  - invoice_discrepancy
+  - duplicate_charge
+  - credit_allocation
+  - subscription_tier_mismatch
+
+latency:
+  - p95_spike
+  - trace_delay
+  - dashboard_render_slow
+  - edge_roundtrip_high
+
+integration:
+  - SIEM_connector_failed
+  - SCADA_protocol_error
+  - PLC_driver_fault
+  - webhook_delivery_failed
+  - SSO_integration_error
+
+data_quality:
+  - missing_values
+  - schema_mismatch
+  - drift_detected
+  - timestamp_skew
+  - cardinality_explosion
+
+api_errors:
+  - 429_rate_limit
+  - 500_internal
+  - 401_unauthorized
+  - payload_too_large
+  - malformed_request
+
+telemetry_drop:
+  - sensor_unreachable
+  - edge_offline
+  - gateway_loss
+  - ingestion_gap
+  - backlog_spike
+
+security_alerts:
+  - bruteforce_detected
+  - anomalous_login
+  - malicious_IP
+  - impossible_travel
+  - MFA_bypass_suspected
+
+observability:
+  - missing_log_stream
+  - dashboard_error
+  - trace_sampling_bug
+  - alert_deduping_failed
+
+deployment_failures:
+  - canary_failed
+  - rollout_aborted
+  - agent_upgrade_failed
+  - PLC_update_incomplete
+
+firmware:
+  - version_mismatch
+  - checksum_failure
+  - unsupported_firmware
+  - incompatible_module
+
+scaling:
+  - autoscaler_unresponsive
+  - storage_saturation
+  - pod_evicted
+  - scaling_policy_mismatch
+
+dashboard_issues:
+  - widget_failure
+  - stale_chart
+  - incorrect_units
+  - rendering_error
+```
+
+This dictionary can be referenced directly by LLM prompts, embedding pipelines, or dashboards.
+
+---
+
+# **5. Metadata Distribution Guidelines**
+
+This section defines how synthetic data should be balanced for realistic domain simulation.
+
+## **Severity Distribution**
+
+* **Sev1:** 3%
+* **Sev2:** 12%
+* **Sev3:** 40%
+* **Sev4:** 45%
+
+## **Product Distribution**
+
+Ideal for clustering variety:
+
+* HelioCloud — 40%
+* GridSense — 25%
+* LineaOps — 20%
+* VaultShield — 15%
+
+## **Customer Tier**
+
+* enterprise — 40%
+* midmarket — 40%
+* startup — 20%
+
+## **Channels**
+
+* portal — 45%
+* email — 30%
+* slack — 15%
+* phone_transcript — 10%
+
+## **Regions**
+
+* us-west-2 — 30%
+* us-east-1 — 25%
+* eu-central-1 — 25%
+* ap-southeast-1 — 20%
+
+These ratios ensure natural cluster density when projecting embeddings.
+
+---
+
+# **6. Triage Workflow Attributes (Optional Extensions)**
+
+Tickets may include optional fields for richer ML demos:
+
+* `predicted_category` (LLM-routing)
+* `similar_ticket_ids`
+* `requires_escalation`
+* `sla_violation_likelihood`
+* `related_incident_signature`
+* `triage_summary` (LLM-generated)
+
+These fields enable agentic workflows and multi-step automation prototypes.
+
+---
+
+# **7. Topic Keywords for LLM Consistency**
+
+Each product area has domain-specific vocabulary. These help keep synthetic tickets consistent, realistic, and clusterable.
+
+### **HelioCloud (SaaS Observability)**
+
+`p95`, `latency`, `logs`, `traces`, `OpenTelemetry`, `deploy`, `dashboard`, `SLO`, `alert`, `microservice`, `pipeline`, `throughput`, `cardinality`
+
+### **GridSense (Energy IoT)**
+
+`voltage`, `frequency`, `SCADA`, `IEC`, `transformer`, `PTP`, `edge`, `gateway`, `sensor`, `telemetry`, `outage`, `firmware`, `reactive load`
+
+### **LineaOps (Manufacturing)**
+
+`PLC`, `Modbus`, `robot arm`, `workcell`, `reject rate`, `jitter`, `conveyor`, `downtime`, `cycle time`, `encoder`, `firmware push`
+
+### **VaultShield (Identity Security)**
+
+`MFA`, `SSO`, `OAuth`, `SIEM`, `bruteforce`, `anomalous login`, `federation`, `identity risk`, `threat score`, `audit log`
+
+These keywords help drive uniform cluster structure across synthetic datasets.
+
+---
+
+# **8. Summary**
+
+The ApexGrid Support Taxonomy provides a unified cross-product classification system for generating synthetic enterprise support tickets. It creates:
+
+* strong signal for embeddings
+* clear subcluster separation
+* consistent LLM output
+* realistic operational scenarios
+* flexible metadata for modelling
+
+This taxonomy is the backbone of the Qognus Demo Platform’s NLP and embeddings pipeline, ensuring repeatable and believable synthetic data across all product domains.
+
+
+==================================================
+FILE PATH: models\cluster\cluster_umap_hdbscan.py
+==================================================
+
+"""
+cluster_umap_hdbscan.py
+Qognus Demo Platform — ApexGrid Systems
+---------------------------------------
+
+Takes precomputed embeddings for synthetic ApexGrid support tickets and:
+
+1. Loads ticket metadata + embeddings
+2. Computes a 3D manifold projection using UMAP
+3. Runs HDBSCAN clustering on the 3D manifold
+4. Generates lightweight cluster summaries
+5. Saves:
+   - manifold_3d.npy
+   - cluster_labels.npy
+   - cluster_summary.json
+
+This script is designed to match the pipeline defined in:
+- docs/ml_pipeline_design.md
+- docs/architecture.md
+"""
+
+import json
+import pathlib
+from collections import Counter
+
+import numpy as np
+import pandas as pd
+
+import umap
+import hdbscan
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+PROCESSED_DIR = DATA_DIR / "processed"
+
+TICKETS_PARQUET = PROCESSED_DIR / "tickets.parquet"
+EMBED_NPY = PROCESSED_DIR / "embeddings.npy"
+
+OUT_MANIFOLD = PROCESSED_DIR / "manifold_3d.npy"
+OUT_LABELS = PROCESSED_DIR / "cluster_labels.npy"
+OUT_CLUSTER_SUMMARY = PROCESSED_DIR / "cluster_summary.json"
+
+# UMAP parameters — tweak for aesthetics vs. structure
+UMAP_N_COMPONENTS = 3
+UMAP_N_NEIGHBORS = 30
+UMAP_MIN_DIST = 0.1
+UMAP_METRIC = "cosine"
+UMAP_RANDOM_STATE = 42
+
+# HDBSCAN parameters — tweak for cluster granularity
+HDBSCAN_MIN_CLUSTER_SIZE = 30
+HDBSCAN_MIN_SAMPLES = 10
+HDBSCAN_METRIC = "euclidean"
+HDBSCAN_SELECTION_EPS = 0.05
+
+
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
+
+def load_data():
+    """Load tickets DataFrame and embeddings matrix."""
+    if not TICKETS_PARQUET.exists():
+        raise FileNotFoundError(
+            f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first."
+        )
+    if not EMBED_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {EMBED_NPY}. Run compute_embeddings.py first."
+        )
+
+    print(f"Loading tickets from: {TICKETS_PARQUET}")
+    df = pd.read_parquet(TICKETS_PARQUET)
+
+    print(f"Loading embeddings from: {EMBED_NPY}")
+    embeddings = np.load(EMBED_NPY)
+
+    if len(df) != embeddings.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs embeddings={embeddings.shape[0]}"
+        )
+
+    return df, embeddings
+
+
+def compute_umap_3d(embeddings: np.ndarray) -> np.ndarray:
+    """Compute a 3D UMAP projection."""
+    print("Computing UMAP 3D projection...")
+    reducer = umap.UMAP(
+        n_components=UMAP_N_COMPONENTS,
+        n_neighbors=UMAP_N_NEIGHBORS,
+        min_dist=UMAP_MIN_DIST,
+        metric=UMAP_METRIC,
+        random_state=UMAP_RANDOM_STATE,
+    )
+    coords_3d = reducer.fit_transform(embeddings)
+    print("UMAP completed.")
+
+    # Normalize to a reasonable cube for WebGL (approx [-3, 3]^3)
+    max_abs = max(abs(coords_3d).max(), 1e-6)
+    coords_norm = coords_3d / max_abs * 3.0
+
+    return coords_norm
+
+
+def run_hdbscan(coords_3d: np.ndarray) -> np.ndarray:
+    """Run HDBSCAN clustering on 3D coordinates."""
+    print("Running HDBSCAN clustering...")
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
+        min_samples=HDBSCAN_MIN_SAMPLES,
+        metric=HDBSCAN_METRIC,
+        cluster_selection_epsilon=HDBSCAN_SELECTION_EPS,
+    )
+    labels = clusterer.fit_predict(coords_3d)
+
+    num_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+    noise_fraction = float((labels == -1).sum()) / len(labels)
+
+    print(f"HDBSCAN found {num_clusters} clusters.")
+    print(f"Noise fraction: {noise_fraction:.3f}")
+
+    return labels
+
+
+def summarize_clusters(df: pd.DataFrame, labels: np.ndarray, max_terms: int = 8):
+    """
+    Build a simple summary for each cluster:
+    - size
+    - dominant product
+    - dominant category
+    - top keywords from TF-IDF
+    """
+    print("Building cluster summaries...")
+
+    # Attach labels to DataFrame
+    df = df.copy()
+    df["clusterId"] = labels
+
+    # Prepare text for TF-IDF (summary + description already in df["text"])
+    texts = df["text"].fillna("").tolist()
+    vectorizer = TfidfVectorizer(
+        max_features=5000,
+        ngram_range=(1, 2),
+        stop_words="english"
+    )
+    tfidf = vectorizer.fit_transform(texts)
+    vocab = np.array(vectorizer.get_feature_names_out())
+
+    cluster_ids = sorted(set(labels))
+    summaries = {}
+
+    for cid in cluster_ids:
+        if cid == -1:
+            # treat -1 as noise; optionally summarise or skip
+            continue
+
+        mask = df["clusterId"] == cid
+        idx = np.where(mask.values)[0]
+        if len(idx) == 0:
+            continue
+
+        cluster_df = df.loc[mask]
+
+        # Basic stats
+        size = int(mask.sum())
+        product_counts = Counter(cluster_df["product"])
+        category_counts = Counter(cluster_df["category"])
+
+        top_product, top_product_count = product_counts.most_common(1)[0]
+        top_category, top_category_count = category_counts.most_common(1)[0]
+
+        # Top terms via column-summed TF-IDF
+        sub_tfidf = tfidf[idx]
+        # sum across documents
+        col_sum = np.asarray(sub_tfidf.sum(axis=0)).ravel()
+        top_term_idx = col_sum.argsort()[::-1][:max_terms]
+        top_terms = vocab[top_term_idx].tolist()
+
+        summaries[str(cid)] = {
+            "size": size,
+            "topProduct": top_product,
+            "topProductFraction": top_product_count / size,
+            "topCategory": top_category,
+            "topCategoryFraction": top_category_count / size,
+            "topTerms": top_terms,
+        }
+
+    # Noise summary (optional)
+    noise_mask = df["clusterId"] == -1
+    noise_size = int(noise_mask.sum())
+    if noise_size > 0:
+        summaries["-1"] = {
+            "size": noise_size,
+            "topProduct": None,
+            "topProductFraction": None,
+            "topCategory": None,
+            "topCategoryFraction": None,
+            "topTerms": [],
+        }
+
+    return summaries
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("==============================================")
+    print(" Qognus Demo Platform — UMAP + HDBSCAN")
+    print("==============================================")
+
+    df, embeddings = load_data()
+
+    # UMAP 3D projection
+    coords_3d = compute_umap_3d(embeddings)
+    OUT_MANIFOLD.parent.mkdir(parents=True, exist_ok=True)
+    np.save(OUT_MANIFOLD, coords_3d)
+    print(f"Saved 3D manifold → {OUT_MANIFOLD}")
+
+    # HDBSCAN clustering
+    labels = run_hdbscan(coords_3d)
+    np.save(OUT_LABELS, labels.astype(np.int32))
+    print(f"Saved cluster labels → {OUT_LABELS}")
+
+    # Cluster summaries
+    cluster_summary = summarize_clusters(df, labels)
+    with OUT_CLUSTER_SUMMARY.open("w", encoding="utf-8") as f:
+        json.dump(cluster_summary, f, indent=2)
+    print(f"Saved cluster summary → {OUT_CLUSTER_SUMMARY}")
+
+    print("\nDone.\n")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: models\embed\compute_embeddings.py
+==================================================
+
+"""
+compute_embeddings.py
+Qognus Demo Platform — ApexGrid Systems
+---------------------------------------
+
+Loads synthetic ApexGrid support tickets, normalizes fields, computes text
+embeddings via a local Ollama model, and stores:
+- tickets.parquet
+- ticket_meta.json
+- embeddings.npy
+- embedding_ids.json
+
+This script is designed to match the pipeline defined in:
+docs/ml_pipeline_design.md
+docs/support_taxonomy.md
+docs/data_generation_design.md
+"""
+
+import json
+import time
+import pathlib
+import requests
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_TICKETS = DATA_DIR / "raw" / "apexgrid_tickets.jsonl"
+
+PROCESSED_DIR = DATA_DIR / "processed"
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+OUT_PARQUET = PROCESSED_DIR / "tickets.parquet"
+OUT_META = PROCESSED_DIR / "ticket_meta.json"
+OUT_EMBED = PROCESSED_DIR / "embeddings.npy"
+OUT_IDS = PROCESSED_DIR / "embedding_ids.json"
+
+OLLAMA_URL = "http://localhost:11434/api/embeddings"
+EMBED_MODEL = "mxbai-embed-large"    # or "nomic-embed-text"
+
+
+# ------------------------------------------------------------
+# UTILS
+# ------------------------------------------------------------
+
+def load_jsonl(path: pathlib.Path) -> list[dict]:
+    """Load JSON lines file."""
+    items = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                items.append(obj)
+            except json.JSONDecodeError:
+                print(f"Skipping malformed JSON line: {line[:120]}...")
+    return items
+
+
+def normalize_ticket(t: dict) -> dict:
+    """Normalize one ticket’s fields based on defined data model."""
+    # Ensure required fields exist
+    required = [
+        "ticket_id", "timestamp", "product", "category", "subcategory",
+        "severity", "customer_tier", "region", "environment", "channel",
+        "summary", "description"
+    ]
+    for field in required:
+        if field not in t:
+            t[field] = ""
+
+    # Canonical severity
+    sev = t["severity"].strip()
+    if not sev.startswith("Sev"):
+        # try capitalizing existing numeric field
+        digits = "".join(c for c in sev if c.isdigit())
+        sev = f"Sev{digits}" if digits else "Sev4"
+    t["severity"] = sev
+
+    # Canonical region (fallback)
+    t["region"] = t["region"].strip().lower()
+
+    # Combine text fields
+    summary = t["summary"] or ""
+    description = t["description"] or ""
+    t["text"] = (summary + " " + description).strip()
+
+    return t
+
+
+def get_embedding_ollama(text: str, model: str = EMBED_MODEL) -> list[float]:
+    """Call Ollama embedding endpoint. Returns vector."""
+    try:
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": model, "prompt": text},
+            timeout=30
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["embedding"]
+    except Exception as e:
+        print(f"[ERROR] Embedding failed: {e}. Retrying in 2 seconds.")
+        time.sleep(2)
+        # single retry
+        resp = requests.post(
+            OLLAMA_URL,
+            json={"model": model, "prompt": text},
+            timeout=30
+        )
+        resp.raise_for_status()
+        return resp.json()["embedding"]
+
+
+# ------------------------------------------------------------
+# MAIN PIPELINE
+# ------------------------------------------------------------
+
+def main():
+    print("==============================================")
+    print(" Qognus Demo Platform — Compute Embeddings")
+    print("==============================================")
+    print(f"Loading tickets from: {RAW_TICKETS}")
+
+    if not RAW_TICKETS.exists():
+        raise FileNotFoundError(
+            f"Cannot find synthetic ticket file at {RAW_TICKETS}. "
+            f"Ensure you ran generate_tickets_ollama.py first."
+        )
+
+    raw_items = load_jsonl(RAW_TICKETS)
+    if not raw_items:
+        raise RuntimeError("No valid tickets found. Aborting.")
+
+    print(f"Loaded {len(raw_items)} tickets.")
+
+    # Normalize
+    print("Normalizing...")
+    normed = [normalize_ticket(t) for t in raw_items]
+    df = pd.DataFrame(normed)
+
+    # Save metadata (ticket_id -> metadata)
+    print("Saving metadata...")
+    meta_dict = {}
+    for _, row in df.iterrows():
+        meta_dict[row["ticket_id"]] = {
+            "product": row["product"],
+            "category": row["category"],
+            "subcategory": row["subcategory"],
+            "severity": row["severity"],
+            "customer_tier": row["customer_tier"],
+            "region": row["region"],
+            "environment": row["environment"],
+            "channel": row["channel"],
+            "timestamp": row["timestamp"]
+        }
+
+    with OUT_META.open("w", encoding="utf-8") as f:
+        json.dump(meta_dict, f, indent=2)
+
+    # Save parquet
+    df.to_parquet(OUT_PARQUET, index=False)
+    print(f"Saved tickets.parquet → {OUT_PARQUET}")
+
+    # ---------------------------------------------------------
+    # Compute embeddings
+    # ---------------------------------------------------------
+    print("\nComputing embeddings from Ollama …")
+    texts = df["text"].tolist()
+    ticket_ids = df["ticket_id"].tolist()
+
+    all_embeddings = []
+    for text in tqdm(texts, desc="Embedding"):
+        vec = get_embedding_ollama(text)
+        all_embeddings.append(vec)
+
+    emb_matrix = np.array(all_embeddings, dtype=np.float32)
+
+    # Save embeddings & id alignment
+    np.save(OUT_EMBED, emb_matrix)
+    with OUT_IDS.open("w", encoding="utf-8") as f:
+        json.dump(ticket_ids, f, indent=2)
+
+    print(f"\nSaved embeddings → {OUT_EMBED}")
+    print(f"Saved embedding_ids → {OUT_IDS}")
+
+    print("\nDone.\n")
+
+
+# ------------------------------------------------------------
+# ENTRYPOINT
+# ------------------------------------------------------------
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: models\eval\embedding_health.py
+==================================================
+
+"""
+embedding_health.py
+Qognus Demo Platform — ApexGrid Systems
+---------------------------------------
+
+Evaluates the quality and behavior of the embedding + clustering pipeline.
+
+Loads:
+- data/processed/tickets.parquet
+- data/processed/embeddings.npy
+- data/processed/manifold_3d.npy
+- data/processed/cluster_labels.npy
+
+Computes:
+- overall silhouette score (on non-noise points)
+- noise fraction
+- cluster size distribution
+- per-cluster product & category purity
+- global severity distribution
+
+Writes:
+- data/processed/model_health.json
+
+This script matches the design described in:
+- docs/ml_pipeline_design.md
+- docs/architecture.md
+"""
+
+import json
+import pathlib
+from collections import Counter, defaultdict
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import silhouette_score
+
+# ------------------------------------------------------------
+# PATHS
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+PROCESSED_DIR = DATA_DIR / "processed"
+
+TICKETS_PARQUET = PROCESSED_DIR / "tickets.parquet"
+EMBED_NPY = PROCESSED_DIR / "embeddings.npy"
+MANIFOLD_3D_NPY = PROCESSED_DIR / "manifold_3d.npy"
+CLUSTER_LABELS_NPY = PROCESSED_DIR / "cluster_labels.npy"
+
+OUT_MODEL_HEALTH = PROCESSED_DIR / "model_health.json"
+
+
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
+
+def load_artifacts():
+    """Load tickets, embeddings, 3D manifold, and cluster labels."""
+    if not TICKETS_PARQUET.exists():
+        raise FileNotFoundError(
+            f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first."
+        )
+    if not EMBED_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {EMBED_NPY}. Run compute_embeddings.py first."
+        )
+    if not MANIFOLD_3D_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {MANIFOLD_3D_NPY}. Run cluster_umap_hdbscan.py first."
+        )
+    if not CLUSTER_LABELS_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {CLUSTER_LABELS_NPY}. Run cluster_umap_hdbscan.py first."
+        )
+
+    print(f"Loading tickets from: {TICKETS_PARQUET}")
+    df = pd.read_parquet(TICKETS_PARQUET)
+
+    print(f"Loading embeddings from: {EMBED_NPY}")
+    embeddings = np.load(EMBED_NPY)
+
+    print(f"Loading manifold 3D from: {MANIFOLD_3D_NPY}")
+    coords_3d = np.load(MANIFOLD_3D_NPY)
+
+    print(f"Loading cluster labels from: {CLUSTER_LABELS_NPY}")
+    labels = np.load(CLUSTER_LABELS_NPY)
+
+    if len(df) != embeddings.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs embeddings={embeddings.shape[0]}"
+        )
+    if len(df) != coords_3d.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs coords={coords_3d.shape[0]}"
+        )
+    if len(df) != labels.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs labels={labels.shape[0]}"
+        )
+
+    return df, embeddings, coords_3d, labels
+
+
+def compute_silhouette(coords_3d: np.ndarray, labels: np.ndarray) -> float | None:
+    """
+    Compute silhouette score on non-noise points.
+    Returns None if not enough clusters.
+    """
+    unique_labels = set(labels) - {-1}
+    if len(unique_labels) < 2:
+        print("Not enough non-noise clusters for silhouette score.")
+        return None
+
+    valid_mask = labels != -1
+    if valid_mask.sum() < 2:
+        print("Too few valid points for silhouette score.")
+        return None
+
+    try:
+        score = silhouette_score(coords_3d[valid_mask], labels[valid_mask])
+        return float(score)
+    except Exception as e:
+        print(f"Silhouette score computation failed: {e}")
+        return None
+
+
+def compute_cluster_stats(df: pd.DataFrame, labels: np.ndarray):
+    """
+    Compute cluster-level stats:
+    - size
+    - product purity
+    - category purity
+    """
+    df = df.copy()
+    df["clusterId"] = labels
+
+    cluster_ids = sorted(set(labels))
+    cluster_sizes = {}
+    product_purity = {}
+    category_purity = {}
+
+    for cid in cluster_ids:
+        mask = df["clusterId"] == cid
+        size = int(mask.sum())
+        cluster_sizes[str(cid)] = size
+
+        if size == 0:
+            product_purity[str(cid)] = {}
+            category_purity[str(cid)] = {}
+            continue
+
+        sub = df.loc[mask]
+        prod_counts = Counter(sub["product"].fillna("unknown"))
+        cat_counts = Counter(sub["category"].fillna("unknown"))
+
+        # Convert to fractions
+        product_purity[str(cid)] = {
+            prod: count / size for prod, count in prod_counts.items()
+        }
+        category_purity[str(cid)] = {
+            cat: count / size for cat, count in cat_counts.items()
+        }
+
+    return cluster_sizes, product_purity, category_purity
+
+
+def compute_severity_distribution(df: pd.DataFrame):
+    """Compute global severity distribution across all tickets."""
+    sev_counts = Counter(df["severity"].fillna("unknown"))
+    n = len(df)
+    return {sev: count / n for sev, count in sev_counts.items()}
+
+
+def compute_label_counts(labels: np.ndarray):
+    """Compute counts and noise fraction for cluster labels."""
+    n = len(labels)
+    noise_mask = labels == -1
+    noise_fraction = float(noise_mask.sum()) / float(n)
+
+    cluster_counts = Counter(l for l in labels if l != -1)
+    num_clusters = len(cluster_counts)
+    largest_cluster_size = max(cluster_counts.values()) if cluster_counts else 0
+
+    return {
+        "numClusters": int(num_clusters),
+        "noiseFraction": noise_fraction,
+        "largestClusterSize": int(largest_cluster_size),
+        "clusterCounts": {str(cid): int(sz) for cid, sz in cluster_counts.items()},
+    }
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("==============================================")
+    print(" Qognus Demo Platform — Embedding Health")
+    print("==============================================")
+
+    df, embeddings, coords_3d, labels = load_artifacts()
+    n_tickets = len(df)
+
+    print("Computing silhouette score...")
+    avg_silhouette = compute_silhouette(coords_3d, labels)
+    if avg_silhouette is not None:
+        print(f"Average silhouette: {avg_silhouette:.3f}")
+    else:
+        print("Average silhouette: None")
+
+    print("Computing cluster stats...")
+    cluster_sizes, product_purity, category_purity = compute_cluster_stats(df, labels)
+
+    print("Computing label distribution...")
+    label_stats = compute_label_counts(labels)
+
+    print("Computing severity distribution...")
+    severity_distribution = compute_severity_distribution(df)
+
+    # Assemble health dict
+    health = {
+        "numTickets": int(n_tickets),
+        "avgSilhouette": avg_silhouette,
+        "noiseFraction": label_stats["noiseFraction"],
+        "numClusters": label_stats["numClusters"],
+        "largestClusterSize": label_stats["largestClusterSize"],
+        "clusterSizes": cluster_sizes,
+        "severityDistribution": severity_distribution,
+        "productPurityByCluster": product_purity,
+        "categoryPurityByCluster": category_purity,
+    }
+
+    OUT_MODEL_HEALTH.parent.mkdir(parents=True, exist_ok=True)
+    with OUT_MODEL_HEALTH.open("w", encoding="utf-8") as f:
+        json.dump(health, f, indent=2)
+
+    print(f"\nSaved model health → {OUT_MODEL_HEALTH}")
+    print("Done.\n")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: models\eval\export_web_artifacts.py
+==================================================
+
+"""
+export_web_artifacts.py
+Qognus Demo Platform — ApexGrid Systems
+---------------------------------------
+
+Loads processed ApexGrid ML artifacts and exports them as
+web-ready JavaScript payloads:
+
+- web/data/ticket_points.js
+    window.TICKET_POINTS = { points: [...] }
+
+- web/data/ticket_summary.js
+    window.TICKET_SUMMARY = { ... }
+
+These are consumed directly by the static web front-end
+(index.html, embedding_viz.js, charts.js, etc.).
+"""
+
+import json
+import pathlib
+from collections import Counter
+
+import numpy as np
+import pandas as pd
+from sklearn.metrics import silhouette_score
+
+# ------------------------------------------------------------
+# PATHS
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+PROCESSED_DIR = DATA_DIR / "processed"
+
+TICKETS_PARQUET = PROCESSED_DIR / "tickets.parquet"
+MANIFOLD_3D_NPY = PROCESSED_DIR / "manifold_3d.npy"
+CLUSTER_LABELS_NPY = PROCESSED_DIR / "cluster_labels.npy"
+MODEL_HEALTH_JSON = PROCESSED_DIR / "model_health.json"  # optional
+
+WEB_DIR = pathlib.Path("web")
+WEB_DATA_DIR = WEB_DIR / "data"
+WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+OUT_POINTS_JS = WEB_DATA_DIR / "ticket_points.js"
+OUT_SUMMARY_JS = WEB_DATA_DIR / "ticket_summary.js"
+
+
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
+
+def load_core_artifacts():
+    """Load tickets DataFrame, 3D manifold coordinates, and cluster labels."""
+    if not TICKETS_PARQUET.exists():
+        raise FileNotFoundError(
+            f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first."
+        )
+    if not MANIFOLD_3D_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {MANIFOLD_3D_NPY}. Run cluster_umap_hdbscan.py first."
+        )
+    if not CLUSTER_LABELS_NPY.exists():
+        raise FileNotFoundError(
+            f"Missing {CLUSTER_LABELS_NPY}. Run cluster_umap_hdbscan.py first."
+        )
+
+    print(f"Loading tickets from: {TICKETS_PARQUET}")
+    df = pd.read_parquet(TICKETS_PARQUET)
+
+    print(f"Loading manifold 3D from: {MANIFOLD_3D_NPY}")
+    coords_3d = np.load(MANIFOLD_3D_NPY)
+
+    print(f"Loading cluster labels from: {CLUSTER_LABELS_NPY}")
+    labels = np.load(CLUSTER_LABELS_NPY)
+
+    if len(df) != coords_3d.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs coords={coords_3d.shape[0]}"
+        )
+    if len(df) != labels.shape[0]:
+        raise ValueError(
+            f"Row count mismatch: tickets={len(df)} vs labels={labels.shape[0]}"
+        )
+
+    return df, coords_3d, labels
+
+
+def maybe_load_model_health(manifold_3d, labels):
+    """
+    Try to load precomputed model_health.json.
+    If not found, compute a minimal set of metrics inline.
+    """
+    if MODEL_HEALTH_JSON.exists():
+        print(f"Loading model health from: {MODEL_HEALTH_JSON}")
+        with MODEL_HEALTH_JSON.open("r", encoding="utf-8") as f:
+            return json.load(f)
+
+    print("model_health.json not found; computing basic metrics inline...")
+
+    n = len(labels)
+    noise_mask = labels == -1
+    noise_fraction = float(noise_mask.sum()) / float(n)
+
+    # Compute silhouette only on non-noise labels, if possible
+    unique_labels = set(labels) - {-1}
+    if len(unique_labels) >= 2:
+        valid_mask = labels != -1
+        try:
+            avg_silhouette = float(
+                silhouette_score(manifold_3d[valid_mask], labels[valid_mask])
+            )
+        except Exception as e:
+            print(f"Silhouette computation failed: {e}")
+            avg_silhouette = None
+    else:
+        avg_silhouette = None
+
+    # Cluster sizes (excluding noise)
+    cluster_sizes = Counter(l for l in labels if l != -1)
+    largest_cluster_size = max(cluster_sizes.values()) if cluster_sizes else 0
+    num_clusters = len(cluster_sizes)
+
+    return {
+        "numTickets": int(n),
+        "numClusters": int(num_clusters),
+        "noiseFraction": float(noise_fraction),
+        "avgSilhouette": avg_silhouette,
+        "largestClusterSize": int(largest_cluster_size),
+    }
+
+
+def export_ticket_points(df: pd.DataFrame, coords_3d: np.ndarray, labels: np.ndarray):
+    """
+    Export a JS file with point coordinates + metadata for WebGL rendering.
+
+    Structure:
+    window.TICKET_POINTS = {
+      points: [
+        { id, x, y, z, product, category, severity, clusterId, isP1, ... },
+        ...
+      ]
+    }
+    """
+    print(f"Exporting ticket_points.js → {OUT_POINTS_JS}")
+
+    points = []
+    for i, row in df.iterrows():
+        x, y, z = coords_3d[i].tolist()
+        severity = row.get("severity", "")
+        point = {
+            "id": row.get("ticket_id", f"TCK-{i:06d}"),
+            "x": float(x),
+            "y": float(y),
+            "z": float(z),
+            "product": row.get("product", ""),
+            "category": row.get("category", ""),
+            "subcategory": row.get("subcategory", ""),
+            "severity": severity,
+            "customerTier": row.get("customer_tier", ""),
+            "region": row.get("region", ""),
+            "environment": row.get("environment", ""),
+            "clusterId": int(labels[i]),
+            "isP1": bool(severity == "Sev1"),
+        }
+        points.append(point)
+
+    payload = {"points": points}
+
+    with OUT_POINTS_JS.open("w", encoding="utf-8") as f:
+        f.write("window.TICKET_POINTS = ")
+        json.dump(payload, f)
+        f.write(";\n")
+
+
+def export_ticket_summary(df: pd.DataFrame, labels: np.ndarray, health: dict):
+    """
+    Export high-level summary metrics and distributions for Chart.js.
+
+    Structure:
+    window.TICKET_SUMMARY = {
+      numTickets,
+      severityDistribution,
+      categoryCounts,
+      productCounts,
+      clusterStats: { numClusters, avgSilhouette, noiseFraction, largestClusterSize }
+    }
+    """
+    print(f"Exporting ticket_summary.js → {OUT_SUMMARY_JS}")
+
+    n = len(df)
+
+    # Severity distribution
+    sev_counts = Counter(df["severity"].fillna("unknown"))
+    severity_distribution = {
+        sev: count / n for sev, count in sev_counts.items()
+    }
+
+    # Category & product counts (absolute)
+    cat_counts = Counter(df["category"].fillna("unknown"))
+    product_counts = Counter(df["product"].fillna("unknown"))
+
+    # Cluster stats from model health (precomputed or inline)
+    cluster_stats = {
+        "numClusters": int(health.get("numClusters", 0)),
+        "avgSilhouette": health.get("avgSilhouette", None),
+        "noiseFraction": float(health.get("noiseFraction", 0.0)),
+        "largestClusterSize": int(health.get("largestClusterSize", 0)),
+    }
+
+    summary = {
+        "numTickets": int(n),
+        "severityDistribution": severity_distribution,
+        "categoryCounts": dict(cat_counts),
+        "productCounts": dict(product_counts),
+        "clusterStats": cluster_stats,
+    }
+
+    with OUT_SUMMARY_JS.open("w", encoding="utf-8") as f:
+        f.write("window.TICKET_SUMMARY = ")
+        json.dump(summary, f)
+        f.write(";\n")
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("==============================================")
+    print(" Qognus Demo Platform — Export Web Artifacts")
+    print("==============================================")
+
+    df, coords_3d, labels = load_core_artifacts()
+    health = maybe_load_model_health(coords_3d, labels)
+
+    export_ticket_points(df, coords_3d, labels)
+    export_ticket_summary(df, labels, health)
+
+    print("Web artifacts exported successfully.")
+    print("You can now open the web app (e.g. `cd web && python -m http.server 3000`).")
+    print()
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: models\gridsense_timeseries\anomaly_model.py
+==================================================
+
+"""
+anomaly_model.py
+Qognus Demo Platform — ApexGrid / GridSense
+-------------------------------------------
+
+Trains and evaluates an unsupervised anomaly detection model on the
+synthetic GridSense multivariate time series.
+
+Steps:
+1. Load data/raw/gridsense_timeseries.parquet
+2. Create rolling-window feature vectors per substation.
+3. Train IsolationForest on all windows.
+4. Compute anomaly scores and derive predicted anomalies.
+5. Evaluate against injected labels (is_anomaly).
+6. Export a JS artifact for the frontend:
+   - data/gridsense_timeseries_artifacts.js
+
+Outputs:
+- data/processed/gridsense_timeseries_with_scores.parquet
+- data/gridsense_timeseries_artifacts.js
+"""
+
+import json
+import pathlib
+from typing import List, Dict, Any, Tuple
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import IsolationForest
+from sklearn.metrics import precision_recall_fscore_support
+from tqdm import tqdm
+
+
+# ------------------------------------------------------------
+# CONFIG
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_DIR = DATA_DIR / "raw"
+PROC_DIR = DATA_DIR / "processed"
+PROC_DIR.mkdir(parents=True, exist_ok=True)
+
+IN_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
+OUT_PARQUET = PROC_DIR / "gridsense_timeseries_with_scores.parquet"
+OUT_JS = DATA_DIR / "gridsense_timeseries_artifacts.js"
+
+# Rolling window length (in timesteps)
+WINDOW = 12  # e.g., 12 * 5min = 60 minutes
+
+# Metrics to use in feature vector
+FEATURE_COLS = ["load_mw", "voltage_kv", "current_a", "freq_hz", "oil_temp_c"]
+
+# Contamination (expected fraction of anomalies for IsolationForest)
+CONTAMINATION = 0.02
+
+RANDOM_SEED = 42
+
+
+# ------------------------------------------------------------
+# Helper functions
+# ------------------------------------------------------------
+
+def build_window_features(
+    df: pd.DataFrame,
+    window: int,
+    feature_cols: List[str],
+) -> Tuple[pd.DataFrame, np.ndarray]:
+    """
+    For each substation, create rolling window features.
+
+    Returns:
+    - window_df: index aligned with the LAST timestamp of each window,
+                 with columns: substation_id, region, is_anomaly (window label), ...
+    - X: numpy array [n_windows, window * len(feature_cols)]
+    """
+    df = df.copy()
+    df = df.sort_values(["substation_id", "timestamp"])
+
+    all_rows = []
+    all_feats = []
+
+    for substation_id, grp in df.groupby("substation_id"):
+        grp = grp.sort_values("timestamp")
+        # Use rolling window with full flatten
+        values = grp[feature_cols].to_numpy()
+        labels = grp["is_anomaly"].to_numpy()
+        ts = grp["timestamp"].to_numpy()
+        region = grp["region"].iloc[0]
+
+        if len(grp) < window:
+            continue
+
+        for i in range(window - 1, len(grp)):
+            start = i - window + 1
+            end = i + 1
+            window_vals = values[start:end, :]
+            window_flat = window_vals.flatten()
+
+            # Window label: 1 if ANY point in window is anomalous
+            window_label = int(labels[start:end].max())
+
+            row = {
+                "timestamp": ts[i],  # last point
+                "substation_id": substation_id,
+                "region": region,
+                "window_label": window_label,
+            }
+            all_rows.append(row)
+            all_feats.append(window_flat)
+
+    window_df = pd.DataFrame(all_rows)
+    X = np.array(all_feats, dtype=float)
+
+    return window_df, X
+
+
+def train_isolation_forest(X: np.ndarray) -> IsolationForest:
+    model = IsolationForest(
+        n_estimators=200,
+        contamination=CONTAMINATION,
+        random_state=RANDOM_SEED,
+        n_jobs=-1,
+    )
+    model.fit(X)
+    return model
+
+
+def compute_scores_and_labels(
+    model: IsolationForest,
+    X: np.ndarray,
+    window_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Add anomaly scores and predicted labels to window_df.
+
+    IsolationForest gives negative scores for anomalies, so we invert & normalize.
+    """
+    # decision_function: higher = more normal
+    scores_raw = model.decision_function(X)  # array shape [n_windows]
+    # Convert so that higher = more anomalous
+    scores = -scores_raw
+
+    # Normalize to [0, 1]
+    s_min, s_max = scores.min(), scores.max()
+    if s_max > s_min:
+        scores_norm = (scores - s_min) / (s_max - s_min)
+    else:
+        scores_norm = np.zeros_like(scores)
+
+    # Threshold at percentile (e.g., top 2% anomalies)
+    threshold = np.quantile(scores_norm, 1.0 - CONTAMINATION)
+    preds = (scores_norm >= threshold).astype(int)
+
+    df = window_df.copy()
+    df["anomaly_score"] = scores_norm
+    df["predicted_anomaly"] = preds
+
+    return df
+
+
+def evaluate_detection(
+    df_window: pd.DataFrame,
+) -> Dict[str, float]:
+    """
+    Compute precision / recall / F1 vs window_label.
+    """
+    y_true = df_window["window_label"].to_numpy()
+    y_pred = df_window["predicted_anomaly"].to_numpy()
+
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        y_true, y_pred, average="binary", zero_division=0
+    )
+
+    return {
+        "precision": float(precision),
+        "recall": float(recall),
+        "f1": float(f1),
+        "contamination": CONTAMINATION,
+    }
+
+
+def merge_window_scores_back(
+    df_full: pd.DataFrame,
+    df_window: pd.DataFrame,
+    window: int,
+) -> pd.DataFrame:
+    """
+    Map window-level scores to the underlying timestamps.
+
+    Strategy:
+    - For each substation, align window_df rows by timestamp.
+    - For each row in full df, copy the score from the window whose LAST timestamp == this row's timestamp.
+      (Rows before the first full window get NaNs.)
+    """
+    df = df_full.reset_index().copy()  # ensure timestamp column
+    df = df.sort_values(["substation_id", "timestamp"])
+
+    df["anomaly_score"] = np.nan
+    df["predicted_anomaly"] = 0
+
+    df_window = df_window.copy()
+    df_window = df_window.sort_values(["substation_id", "timestamp"])
+
+    # Merge on (substation_id, timestamp)
+    df = df.merge(
+        df_window[
+            ["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]
+        ],
+        on=["substation_id", "timestamp"],
+        how="left",
+        suffixes=("", "_win"),
+    )
+
+    # If we had existing columns, we just keep the merged ones
+    df["anomaly_score"] = df["anomaly_score_win"]
+    df["predicted_anomaly"] = df["predicted_anomaly_win"].fillna(0).astype(int)
+
+    df.drop(columns=["anomaly_score_win", "predicted_anomaly_win"], inplace=True)
+    df.set_index("timestamp", inplace=True)
+    df.sort_values(["substation_id", "timestamp"], inplace=True)
+
+    return df
+
+
+def export_js_artifact(
+    df: pd.DataFrame,
+    metrics: Dict[str, float],
+    out_path: pathlib.Path,
+    max_points_per_substation: int = 1000,
+) -> None:
+    """
+    Export a JS file declaring a const GRIDSENSE_TIMESERIES object.
+
+    We downsample per substation to avoid massive payloads.
+    """
+    # Ensure timestamp is ISO string
+    df = df.reset_index().copy()
+    df["timestamp_iso"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    series_records: List[Dict[str, Any]] = []
+
+    for substation_id, grp in df.groupby("substation_id"):
+        grp = grp.sort_values("timestamp")
+        if len(grp) > max_points_per_substation:
+            # simple uniform downsampling
+            idx = np.linspace(0, len(grp) - 1, max_points_per_substation).astype(int)
+            grp = grp.iloc[idx]
+
+        for _, row in grp.iterrows():
+            series_records.append(
+                {
+                    "timestamp": row["timestamp_iso"],
+                    "substation_id": substation_id,
+                    "region": row["region"],
+                    "load_mw": float(row["load_mw"]),
+                    "voltage_kv": float(row["voltage_kv"]),
+                    "current_a": float(row["current_a"]),
+                    "freq_hz": float(row["freq_hz"]),
+                    "oil_temp_c": float(row["oil_temp_c"]),
+                    "is_anomaly": int(row["is_anomaly"]),
+                    "anomaly_type": row["anomaly_type"],
+                    "anomaly_score": float(row["anomaly_score"])
+                    if not pd.isna(row["anomaly_score"])
+                    else None,
+                    "predicted_anomaly": int(row["predicted_anomaly"]),
+                }
+            )
+
+    payload = {
+        "summary": metrics,
+        "series": series_records,
+    }
+
+    js_content = "const GRIDSENSE_TIMESERIES = " + json.dumps(
+        payload, indent=2
+    ) + ";\n"
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(js_content, encoding="utf-8")
+    print(f"Wrote JS artifact to: {out_path}")
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("===================================================")
+    print(" GridSense Time Series Anomaly Model (Synthetic) ")
+    print("===================================================")
+    print(f"Input:  {IN_PARQUET}")
+    print(f"Output (parquet with scores): {OUT_PARQUET}")
+    print(f"Output (JS artifact):         {OUT_JS}")
+
+    if not IN_PARQUET.exists():
+        raise FileNotFoundError(
+            f"Input parquet not found: {IN_PARQUET}. "
+            f"Run synthetic/generate_gridsense_timeseries.py first."
+        )
+
+    df_full = pd.read_parquet(IN_PARQUET)
+    df_full = df_full.sort_values(["substation_id", "timestamp"])
+
+    print("Building rolling window features...")
+    window_df, X = build_window_features(
+        df_full.reset_index(), window=WINDOW, feature_cols=FEATURE_COLS
+    )
+    print(f"Number of windows: {len(window_df)}, feature dim: {X.shape[1]}")
+
+    print("Training IsolationForest...")
+    model = train_isolation_forest(X)
+
+    print("Scoring windows...")
+    df_window_scores = compute_scores_and_labels(model, X, window_df)
+
+    print("Evaluating detection performance on window labels...")
+    metrics = evaluate_detection(df_window_scores)
+    print("Metrics:", metrics)
+
+    print("Merging window scores back to full time series...")
+    df_with_scores = merge_window_scores_back(df_full, df_window_scores, WINDOW)
+
+    print(f"Saving full series with scores to: {OUT_PARQUET}")
+    df_with_scores.to_parquet(OUT_PARQUET)
+
+    print("Exporting JS artifact for frontend...")
+    export_js_artifact(df_with_scores, metrics, OUT_JS)
+
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: notebooks\01_generate_synthetic.ipynb
+==================================================
+
+
+
+==================================================
+FILE PATH: notebooks\02_embeddings.ipynb
+==================================================
+
+
+
+==================================================
+FILE PATH: notebooks\03_clustering.ipynb
+==================================================
+
+
+
+==================================================
+FILE PATH: notebooks\04_model_health.ipynb
+==================================================
+
+
+
+==================================================
+FILE PATH: notebooks\05_visualization_prototyping.ipynb
+==================================================
+
+
+
+==================================================
+FILE PATH: synthetic\generate_gridsense_timeseries.py
+==================================================
+
+"""
+generate_gridsense_timeseries.py
+Qognus Demo Platform — ApexGrid Systems / GridSense
+---------------------------------------------------
+
+Generates synthetic multivariate SCADA-like time series data for GridSense,
+with enough physical structure that infra / utility folks won't cringe.
+
+Each substation has:
+- load_mw:       active power (MW)
+- voltage_kv:    line voltage (kV)
+- current_a:     current (A), derived from 3-phase AC approximation
+- freq_hz:       frequency (Hz)
+- oil_temp_c:    transformer oil temperature (°C) with thermal inertia
+
+We simulate N days of data at 5-minute resolution for multiple substations,
+and inject labeled anomaly intervals (grid stress, overheating, sensor faults).
+
+Key modeling choices:
+- Load: stochastic process with daily seasonality + AR(1)/OU dynamics,
+  plus lower usage on weekends.
+- Current: derived from P ≈ √3 · V · I · pf (three-phase AC).
+- Voltage: region-specific nominal kV with load-correlated sag.
+- Frequency: 50 Hz (EU/APAC) or 60 Hz (US) with small noise and
+  slight dependence on load (heavier load => slightly more deviation).
+- Oil temperature: first-order thermal lag towards an equilibrium
+  based on ambient temperature + relative load.
+
+Output:
+- data/raw/gridsense_timeseries.parquet
+- data/raw/gridsense_timeseries.csv
+
+Schema:
+- timestamp:      pandas.Timestamp (UTC, index in parquet)
+- substation_id:  string ("GS-001", ...)
+- region:         string ("us-west-2", ...)
+- load_mw:        float
+- voltage_kv:     float
+- current_a:      float
+- freq_hz:        float
+- oil_temp_c:     float
+- is_anomaly:     int (0/1)
+- anomaly_type:   string or None
+"""
+
+import numpy as np
+import pandas as pd
+import pathlib
+import datetime
+from typing import List
+
+
+# ------------------------------------------------------------
+# CONFIG
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_DIR = DATA_DIR / "raw"
+RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+OUT_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
+OUT_CSV = RAW_DIR / "gridsense_timeseries.csv"
+
+# Time horizon
+DAYS = 30
+FREQ = "5min"
+
+# Substations
+NUM_SUBSTATIONS = 16
+SUBSTATIONS = [f"GS-{i:03d}" for i in range(1, NUM_SUBSTATIONS + 1)]
+
+REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
+
+# Anomaly injection
+ANOMALIES_PER_SUBSTATION = 5
+ANOMALY_MIN_DURATION_MINUTES = 30
+ANOMALY_MAX_DURATION_MINUTES = 180
+
+RANDOM_SEED = 42
+
+
+# ------------------------------------------------------------
+# Helper functions
+# ------------------------------------------------------------
+
+def make_time_index(days: int, freq: str) -> pd.DatetimeIndex:
+    """
+    Create a time index ending "now" (UTC), going back `days` days, at given freq.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now - datetime.timedelta(days=days)
+    return pd.date_range(start=start, end=now, freq=freq, tz="UTC")
+
+
+def daily_load_shape(t: pd.DatetimeIndex) -> np.ndarray:
+    """
+    Diurnal base shape [0, 1.2]-ish, with weekends lower usage.
+
+    - Peak around late afternoon / early evening.
+    - Low at night.
+    - Weekends scaled down.
+    """
+    hour = t.hour + t.minute / 60.0
+    angle = 2 * np.pi * (hour - 16) / 24.0  # 16h ~ 4pm peak
+    base = 0.4 + 0.6 * (0.5 * (1 + np.cos(angle)))  # ~0.4–1.0
+
+    # Weekend factor
+    weekday = t.weekday  # 0=Mon, 6=Sun
+    weekend_mask = (weekday >= 5)  # Sat/Sun
+    weekend_scale = np.where(weekend_mask, 0.7, 1.0)
+
+    return base * weekend_scale
+
+
+def region_baselines(region: str):
+    """
+    Return region-specific nominal parameters:
+    - capacity_mw: typical nameplate capacity per substation
+    - voltage_kv_nominal: nominal line voltage
+    - ambient_base_c, ambient_amp_c: for climate / daily temps
+    - freq_base: nominal frequency (50 or 60 Hz)
+    """
+    if region in ("us-west-2", "us-east-1"):
+        capacity_mw = np.random.uniform(60, 100)
+        voltage_kv_nominal = np.random.uniform(115, 230)
+        ambient_base_c = 18.0
+        ambient_amp_c = 6.0
+        freq_base = 60.0
+    elif region == "eu-central-1":
+        capacity_mw = np.random.uniform(50, 90)
+        voltage_kv_nominal = np.random.uniform(220, 400)
+        ambient_base_c = 12.0
+        ambient_amp_c = 10.0
+        freq_base = 50.0
+    else:  # ap-southeast-1
+        capacity_mw = np.random.uniform(40, 80)
+        voltage_kv_nominal = np.random.uniform(132, 230)
+        ambient_base_c = 26.0
+        ambient_amp_c = 5.0
+        freq_base = 50.0
+
+    return capacity_mw, voltage_kv_nominal, ambient_base_c, ambient_amp_c, freq_base
+
+
+def generate_substation_timeseries(
+    substation_id: str,
+    region: str,
+    time_index: pd.DatetimeIndex,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """
+    Generate baseline multivariate signals for one substation with
+    reasonably physical relationships.
+
+    - load_mw: OU-like stochastic process with diurnal shape.
+    - voltage_kv: nominal minus sag proportional to load + small noise.
+    - current_a: derived from P ≈ √3 · V · I · pf.
+    - freq_hz: nominal frequency with small noise and slight load dependence.
+    - oil_temp_c: thermal lag towards equilibrium based on ambient + load.
+    """
+    n = len(time_index)
+
+    capacity_mw, v_nom, ambient_base_c, ambient_amp_c, freq_base = region_baselines(region)
+
+    # Power factor per substation
+    power_factor = rng.uniform(0.92, 0.99)
+
+    # Diurnal load shape [0..~1]
+    diurnal = daily_load_shape(time_index)
+
+    # Ornstein–Uhlenbeck / AR(1)-style load dynamics
+    # dL = k*(L_target - L)*dt + sigma*sqrt(dt)*N(0,1)
+    dt_hours = pd.Timedelta(time_index[1] - time_index[0]).total_seconds() / 3600.0
+    k = 0.4  # mean reversion strength
+    sigma = capacity_mw * 0.08  # noise scale
+
+    load_mw = np.zeros(n)
+    # initial load near diurnal * capacity
+    load_mw[0] = diurnal[0] * capacity_mw * rng.uniform(0.8, 1.1)
+
+    for i in range(1, n):
+        target = diurnal[i] * capacity_mw  # target based on shape
+        prev = load_mw[i - 1]
+        drift = k * (target - prev) * dt_hours
+        noise = sigma * np.sqrt(dt_hours) * rng.normal()
+        load_mw[i] = max(0.0, prev + drift + noise)
+
+    # Ambient temperature with daily variation
+    # T_ambient = base + amp * cos(2π (hour - 15)/24) + small noise
+    hour = time_index.hour + time_index.minute / 60.0
+    ambient_angle = 2 * np.pi * (hour - 15) / 24.0  # warmest ~3pm
+    ambient = (
+        ambient_base_c
+        + ambient_amp_c * np.cos(ambient_angle)
+        + rng.normal(0, 0.8, size=n)
+    )
+
+    # Voltage with load-dependent sag
+    # v = v_nom - alpha*(load/capacity)*v_nom + small noise
+    alpha_v = rng.uniform(0.03, 0.06)  # sag factor
+    load_frac = np.clip(load_mw / capacity_mw, 0.0, 1.5)
+    voltage_kv = (
+        v_nom * (1.0 - alpha_v * load_frac)
+        + rng.normal(0, v_nom * 0.005, size=n)
+    )
+
+    # Three-phase current approximation:
+    # P(MW) = √3 * V(kV) * I(kA) * pf  => I(A) = P*1e3 / (√3 * V * pf)
+    v_safe = np.maximum(voltage_kv, 1.0)
+    current_a = (load_mw * 1e3) / (np.sqrt(3.0) * v_safe * power_factor)
+    current_a += rng.normal(0, np.mean(current_a) * 0.03, size=n)
+
+    # Frequency with small noise and mild dependence on load
+    # freq = base + epsilon + beta*(load_frac - baseline)
+    beta_f = rng.uniform(0.01, 0.03)
+    freq_noise = rng.normal(0, 0.015, size=n)
+    freq_hz = (
+        freq_base
+        + freq_noise
+        + beta_f * (load_frac - 0.7)
+    )
+
+    # Oil temperature — thermal inertia
+    # T_oil(t) = T_oil(t-1) + dt/τ * (T_eq - T_oil(t-1)) + noise
+    # T_eq = ambient + gamma*load_frac*30
+    tau_hours = rng.uniform(3.0, 6.0)  # thermal time constant
+    gamma_oil = rng.uniform(0.8, 1.2)
+
+    oil_temp_c = np.zeros(n)
+    # start near ambient
+    oil_temp_c[0] = ambient[0] + gamma_oil * load_frac[0] * 15.0
+
+    for i in range(1, n):
+        T_eq = ambient[i] + gamma_oil * load_frac[i] * 30.0
+        prev = oil_temp_c[i - 1]
+        oil_temp_c[i] = (
+            prev
+            + (dt_hours / tau_hours) * (T_eq - prev)
+            + rng.normal(0, 0.4)
+        )
+
+    df = pd.DataFrame(
+        {
+            "timestamp": time_index,
+            "substation_id": substation_id,
+            "region": region,
+            "load_mw": load_mw,
+            "voltage_kv": voltage_kv,
+            "current_a": current_a,
+            "freq_hz": freq_hz,
+            "oil_temp_c": oil_temp_c,
+        }
+    )
+
+    return df
+
+
+def inject_anomalies(
+    df: pd.DataFrame,
+    anomalies_per_sub: int,
+    min_duration_min: int,
+    max_duration_min: int,
+) -> pd.DataFrame:
+    """
+    Inject labeled anomalies at random intervals per substation.
+
+    Types:
+    - "overload": load_mw very high + oil_temp_c high, voltage sag, freq wobble.
+    - "undervoltage": voltage_kv low, current up a bit, freq slightly off.
+    - "freq_instability": freq_hz deviates from nominal, jittery.
+    - "sensor_fault": random spikes / drops on all metrics.
+    """
+    rng = np.random.default_rng(RANDOM_SEED + 123)
+    df = df.copy()
+    df["is_anomaly"] = 0
+    df["anomaly_type"] = None
+
+    unique_substations = df["substation_id"].unique()
+    dt_minutes = int(pd.Timedelta(df.index[1] - df.index[0]).total_seconds() / 60)
+
+    anomaly_types = ["overload", "undervoltage", "freq_instability", "sensor_fault"]
+
+    for sub in unique_substations:
+        sub_mask = df["substation_id"] == sub
+        sub_idx = df.index[sub_mask]
+        n_points = len(sub_idx)
+        if n_points <= 10:
+            continue
+
+        for _ in range(anomalies_per_sub):
+            # Random start index
+            start_idx = rng.integers(0, n_points - 10)
+            # Random duration (in minutes), then convert to #points
+            dur_min = rng.integers(min_duration_min, max_duration_min + 1)
+            dur_points = max(3, int(dur_min / dt_minutes))
+
+            end_idx = min(n_points, start_idx + dur_points)
+            idx_window = sub_idx[start_idx:end_idx]
+            if len(idx_window) == 0:
+                continue
+
+            atype = rng.choice(anomaly_types)
+            a_mask = df.index.isin(idx_window) & sub_mask
+
+            df.loc[a_mask, "is_anomaly"] = 1
+            df.loc[a_mask, "anomaly_type"] = atype
+
+            # Apply anomaly-specific perturbations
+            if atype == "overload":
+                # Load surges significantly beyond typical capacity
+                df.loc[a_mask, "load_mw"] *= rng.uniform(1.4, 1.8)
+                # Voltage sags
+                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.88, 0.95)
+                # Oil temp spikes
+                df.loc[a_mask, "oil_temp_c"] += rng.uniform(10.0, 18.0)
+                # Frequency wobble slightly downward
+                df.loc[a_mask, "freq_hz"] -= rng.normal(0.08, 0.03, size=a_mask.sum())
+
+            elif atype == "undervoltage":
+                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.80, 0.90)
+                # Current might rise slightly to maintain power transfer
+                df.loc[a_mask, "current_a"] *= rng.uniform(1.05, 1.20)
+                # Slightly noisier frequency
+                df.loc[a_mask, "freq_hz"] += rng.normal(0.05, 0.03, size=a_mask.sum())
+
+            elif atype == "freq_instability":
+                df.loc[a_mask, "freq_hz"] += rng.normal(0.4, 0.15, size=a_mask.sum())
+                # Add some correlated noise to load/voltage
+                df.loc[a_mask, "load_mw"] *= rng.uniform(0.9, 1.1)
+                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.95, 1.05)
+
+            elif atype == "sensor_fault":
+                # Big random noise / spikes; may not be physically consistent
+                # which is realistic for sensor misbehavior.
+                n_fault = a_mask.sum()
+                df.loc[a_mask, "load_mw"] *= rng.uniform(0.3, 1.7, size=n_fault)
+                df.loc[a_mask, "voltage_kv"] *= rng.uniform(0.7, 1.3, size=n_fault)
+                df.loc[a_mask, "current_a"] *= rng.uniform(0.3, 1.8, size=n_fault)
+                df.loc[a_mask, "freq_hz"] += rng.normal(0.2, 0.3, size=n_fault)
+                df.loc[a_mask, "oil_temp_c"] += rng.normal(5.0, 6.0, size=n_fault)
+
+    return df
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("===============================================")
+    print(" GridSense Time Series Generator (Synthetic) ")
+    print("===============================================")
+
+    rng = np.random.default_rng(RANDOM_SEED)
+    t_index = make_time_index(DAYS, FREQ)
+
+    all_dfs: List[pd.DataFrame] = []
+
+    for i, sub in enumerate(SUBSTATIONS):
+        region = REGIONS[i % len(REGIONS)]
+        print(f"Generating substation {sub} in region {region} ...")
+        df_sub = generate_substation_timeseries(sub, region, t_index, rng)
+        all_dfs.append(df_sub)
+
+    df_all = pd.concat(all_dfs, ignore_index=True)
+    df_all.set_index("timestamp", inplace=True)
+
+    # Inject anomalies
+    df_all = inject_anomalies(
+        df_all,
+        anomalies_per_sub=ANOMALIES_PER_SUBSTATION,
+        min_duration_min=ANOMALY_MIN_DURATION_MINUTES,
+        max_duration_min=ANOMALY_MAX_DURATION_MINUTES,
+    )
+
+    # Sort nicely
+    df_all.sort_values(["substation_id", "timestamp"], inplace=True)
+
+    print(f"Writing Parquet to: {OUT_PARQUET}")
+    df_all.to_parquet(OUT_PARQUET)
+
+    print(f"Writing CSV to: {OUT_CSV}")
+    df_all.reset_index().to_csv(OUT_CSV, index=False)
+
+    print("Done. Sample rows:")
+    print(df_all.head())
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: synthetic\generate_tickets_langchain.py
+==================================================
+
+"""
+generate_tickets_langchain.py
+Qognus Demo Platform — ApexGrid Systems
+---------------------------------------
+
+Generates fully synthetic ApexGrid support tickets using a local LLM
+via Ollama, with LangChain + Pydantic structured output.
+
+Design:
+1. Generate all metadata in Python (ticket_id, product, category, etc.)
+2. Ask the LLM ONLY for:
+   - summary
+   - description
+   - topics (list of tags)
+3. Use LangChain's PydanticOutputParser to enforce structure.
+4. Combine meta + generated body into a final ticket object.
+
+Output:
+- data/raw/apexgrid_tickets.jsonl
+
+Each line is a JSON object with:
+  ticket_id, timestamp, product, category, subcategory, severity,
+  customer_tier, region, environment, channel, summary, description, topics
+
+Idempotent behavior:
+- If the JSONL already exists, we read it, find the max ticket index
+  (from ticket_id like 'TCK-000123'), and append new tickets after that.
+- If we already have >= TOTAL_TICKETS, the script exits without doing work.
+"""
+
+import json
+import random
+import pathlib
+import datetime
+import time
+from typing import Dict, Any, List
+
+from tqdm import tqdm
+from pydantic import BaseModel, Field
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_ollama import ChatOllama
+
+
+# ------------------------------------------------------------
+# CONFIG
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_DIR = DATA_DIR / "raw"
+RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+OUT_JSONL = RAW_DIR / "apexgrid_tickets.jsonl"
+
+# Local Ollama model name; adjust to what you have pulled
+# (e.g. "phi3:medium", "phi3:latest", "qwen3:8b", etc.)
+OLLAMA_MODEL = "phi3:medium"
+
+# Target total number of tickets in the JSONL
+TOTAL_TICKETS = 2000
+
+# Time window for timestamps (last X days)
+TIMESTAMP_DAYS_BACK = 30
+
+# Number of retries per ticket if LLM call fails / parses badly
+MAX_RETRIES_PER_TICKET = 3
+
+
+# ------------------------------------------------------------
+# TAXONOMY / METADATA DEFINITIONS
+# ------------------------------------------------------------
+
+PRODUCTS = ["HelioCloud", "GridSense", "LineaOps", "VaultShield"]
+
+CATEGORIES = {
+    "authentication": [
+        "MFA_failure",
+        "SSO_drift",
+        "oauth_token_expired",
+        "unexpected_logout",
+        "credential_validation_error",
+    ],
+    "authorization": [
+        "permission_denied",
+        "role_mismatch",
+        "policy_conflict",
+        "invalid_scope",
+    ],
+    "billing": [
+        "invoice_discrepancy",
+        "duplicate_charge",
+        "credit_allocation",
+        "subscription_tier_mismatch",
+    ],
+    "latency": [
+        "p95_spike",
+        "trace_delay",
+        "dashboard_render_slow",
+        "edge_roundtrip_high",
+    ],
+    "integration": [
+        "SIEM_connector_failed",
+        "SCADA_protocol_error",
+        "PLC_driver_fault",
+        "webhook_delivery_failed",
+        "SSO_integration_error",
+    ],
+    "data_quality": [
+        "missing_values",
+        "schema_mismatch",
+        "drift_detected",
+        "timestamp_skew",
+        "cardinality_explosion",
+    ],
+    "api_errors": [
+        "429_rate_limit",
+        "500_internal",
+        "401_unauthorized",
+        "payload_too_large",
+        "malformed_request",
+    ],
+    "telemetry_drop": [
+        "sensor_unreachable",
+        "edge_offline",
+        "gateway_loss",
+        "ingestion_gap",
+        "backlog_spike",
+    ],
+    "security_alerts": [
+        "bruteforce_detected",
+        "anomalous_login",
+        "malicious_IP",
+        "impossible_travel",
+        "MFA_bypass_suspected",
+    ],
+    "observability": [
+        "missing_log_stream",
+        "dashboard_error",
+        "trace_sampling_bug",
+        "alert_deduping_failed",
+    ],
+    "deployment_failures": [
+        "canary_failed",
+        "rollout_aborted",
+        "agent_upgrade_failed",
+        "PLC_update_incomplete",
+    ],
+    "firmware": [
+        "version_mismatch",
+        "checksum_failure",
+        "unsupported_firmware",
+        "incompatible_module",
+    ],
+    "scaling": [
+        "autoscaler_unresponsive",
+        "storage_saturation",
+        "pod_evicted",
+        "scaling_policy_mismatch",
+    ],
+    "dashboard_issues": [
+        "widget_failure",
+        "stale_chart",
+        "incorrect_units",
+        "rendering_error",
+    ],
+}
+
+SEVERITIES = ["Sev1", "Sev2", "Sev3", "Sev4"]
+SEVERITY_WEIGHTS = [0.03, 0.12, 0.40, 0.45]  # Sev1..Sev4
+
+CUSTOMER_TIERS = ["enterprise", "midmarket", "startup"]
+CUSTOMER_TIER_WEIGHTS = [0.4, 0.4, 0.2]
+
+REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
+REGION_WEIGHTS = [0.3, 0.25, 0.25, 0.2]
+
+ENVIRONMENTS = ["production", "staging", "sandbox"]
+ENV_WEIGHTS = [0.7, 0.2, 0.1]
+
+CHANNELS = ["portal", "email", "slack", "phone"]
+
+PRODUCT_CATEGORY_MAP = {
+    "HelioCloud": [
+        "observability",
+        "latency",
+        "integration",
+        "data_quality",
+        "api_errors",
+        "scaling",
+        "dashboard_issues",
+        "authentication",
+        "authorization",
+        "billing",
+    ],
+    "GridSense": [
+        "telemetry_drop",
+        "integration",
+        "data_quality",
+        "firmware",
+        "deployment_failures",
+        "latency",
+    ],
+    "LineaOps": [
+        "telemetry_drop",
+        "integration",
+        "firmware",
+        "deployment_failures",
+        "data_quality",
+        "latency",
+    ],
+    "VaultShield": [
+        "authentication",
+        "authorization",
+        "security_alerts",
+        "api_errors",
+        "dashboard_issues",
+        "data_quality",
+    ],
+}
+
+
+# ------------------------------------------------------------
+# Pydantic model for structured output
+# ------------------------------------------------------------
+
+class TicketBody(BaseModel):
+    """
+    Only the "semantic" parts that the LLM is allowed to generate.
+    All other fields (product, category, severity, etc.) are injected
+    by Python from metadata.
+    """
+    summary: str = Field(
+        description="A single-sentence summary of the issue."
+    )
+    description: str = Field(
+        description="A detailed description of the issue, 3-8 full sentences."
+    )
+    topics: List[str] = Field(
+        description="List of 2-4 short tags related to this ticket."
+    )
+
+
+# ------------------------------------------------------------
+# LangChain setup
+# ------------------------------------------------------------
+
+SYSTEM_PROMPT = """
+You are generating fully synthetic enterprise support tickets for a fictional company named ApexGrid Systems.
+
+Context:
+- HelioCloud: SaaS observability (logs, metrics, traces, dashboards, alerts).
+- GridSense: energy & utility IoT monitoring (SCADA, sensors, substations).
+- LineaOps: manufacturing & robotics (PLC, lines, conveyors, robot cells).
+- VaultShield: identity & security analytics (SSO, MFA, SIEM, anomalous logins).
+
+STRICT RULES:
+- Never reference real companies, people, brands, or domains.
+- Use only generic references like "the customer", "their cluster", "the grid", etc.
+- Align tone with professional enterprise support.
+- Do NOT mention that this is synthetic or fictional.
+- Do NOT include placeholders like 'lorem ipsum' or 'example.com'.
+- You ONLY generate the fields: summary, description, topics.
+- The final JSON format is dictated by the schema you are given.
+"""
+
+USER_TEMPLATE = """
+You are generating the body of a support ticket for the ApexGrid product suite.
+
+Here is the fixed metadata for this ticket (these values are ALREADY decided and must be respected conceptually):
+
+ticket_id: {ticket_id}
+timestamp: {timestamp}
+product: {product}
+category: {category}
+subcategory: {subcategory}
+severity: {severity}
+customer_tier: {customer_tier}
+region: {region}
+environment: {environment}
+channel: {channel}
+
+Write:
+- a concise, one-sentence SUMMARY describing the problem.
+- a detailed DESCRIPTION of 3-8 full sentences:
+  - mention relevant product/region/environment context naturally
+  - describe what the customer observed, any diagnostics, and impact
+  - keep it realistic and technically grounded for that product & category
+- a TOPICS list (2-4 short tags) related to the issue.
+
+You MUST follow the response JSON schema instructions that follow.
+"""
+
+PARSER = PydanticOutputParser(pydantic_object=TicketBody)
+
+PROMPT = ChatPromptTemplate.from_messages([
+    ("system", SYSTEM_PROMPT),
+    ("user", USER_TEMPLATE),
+    ("assistant", "{format_instructions}"),
+])
+
+
+def make_llm() -> ChatOllama:
+    """
+    Construct the ChatOllama LLM configured to output JSON.
+    """
+    return ChatOllama(
+        model=OLLAMA_MODEL,
+        temperature=0.4,
+        format="json",  # important for structured output
+    )
+
+
+def make_chain():
+    """
+    LCEL chain: Prompt -> LLM -> Pydantic parser.
+    Returns TicketBody directly on success.
+    """
+    llm = make_llm()
+    chain = PROMPT | llm | PARSER
+    return chain
+
+
+# ------------------------------------------------------------
+# Helpers for metadata / idempotence
+# ------------------------------------------------------------
+
+def random_ticket_id(n: int) -> str:
+    return f"TCK-{n:06d}"
+
+
+def random_timestamp_within_days(days_back: int) -> str:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    delta = datetime.timedelta(days=random.uniform(0, days_back))
+    ts = now - delta
+    # ISO 8601 + "Z" marker
+    return ts.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def choose_weighted(options: List[str], weights: List[float]) -> str:
+    return random.choices(options, weights=weights, k=1)[0]
+
+
+def build_metadata(index: int) -> Dict[str, Any]:
+    """
+    Construct the full metadata dict for ticket with numeric index.
+    """
+    product = random.choice(PRODUCTS)
+    category = random.choice(PRODUCT_CATEGORY_MAP[product])
+    subcategory = random.choice(CATEGORIES[category])
+
+    severity = choose_weighted(SEVERITIES, SEVERITY_WEIGHTS)
+    customer_tier = choose_weighted(CUSTOMER_TIERS, CUSTOMER_TIER_WEIGHTS)
+    region = choose_weighted(REGIONS, REGION_WEIGHTS)
+    environment = choose_weighted(ENVIRONMENTS, ENV_WEIGHTS)
+    channel = random.choice(CHANNELS)
+
+    ticket_id = random_ticket_id(index)
+    timestamp = random_timestamp_within_days(TIMESTAMP_DAYS_BACK)
+
+    return {
+        "ticket_id": ticket_id,
+        "timestamp": timestamp,
+        "product": product,
+        "category": category,
+        "subcategory": subcategory,
+        "severity": severity,
+        "customer_tier": customer_tier,
+        "region": region,
+        "environment": environment,
+        "channel": channel,
+    }
+
+
+def parse_ticket_index(ticket_id: str) -> int:
+    """
+    Extract the numeric part from IDs of the form 'TCK-000123'.
+    Returns 0 if it can't parse.
+    """
+    try:
+        return int(ticket_id.split("-")[-1])
+    except Exception:
+        return 0
+
+
+def load_existing_max_index(path: pathlib.Path) -> int:
+    """
+    If the JSONL file exists, read it and return the max ticket index.
+    If it doesn't exist or is empty, return 0.
+    """
+    if not path.exists():
+        return 0
+
+    max_idx = 0
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                tid = obj.get("ticket_id", "")
+                idx = parse_ticket_index(tid)
+                if idx > max_idx:
+                    max_idx = idx
+            except Exception:
+                # skip malformed lines
+                continue
+    return max_idx
+
+
+# ------------------------------------------------------------
+# Ticket generation using LangChain structured output
+# ------------------------------------------------------------
+
+def generate_ticket_body(chain, meta: Dict[str, Any]) -> TicketBody:
+    """
+    Invoke the LangChain chain with retries to get a TicketBody
+    (summary, description, topics) for the given metadata.
+    """
+    for attempt in range(1, MAX_RETRIES_PER_TICKET + 1):
+        try:
+            result: TicketBody = chain.invoke({
+                "ticket_id": meta["ticket_id"],
+                "timestamp": meta["timestamp"],
+                "product": meta["product"],
+                "category": meta["category"],
+                "subcategory": meta["subcategory"],
+                "severity": meta["severity"],
+                "customer_tier": meta["customer_tier"],
+                "region": meta["region"],
+                "environment": meta["environment"],
+                "channel": meta["channel"],
+                "format_instructions": PARSER.get_format_instructions(),
+            })
+
+            # Simple sanity checks:
+            if len(result.summary.strip()) < 10:
+                raise ValueError("Summary too short.")
+            if len(result.description.split(".")) < 3:
+                raise ValueError("Description too short or not enough sentences.")
+            if not result.topics:
+                raise ValueError("Missing topics.")
+
+            return result
+
+        except Exception as e:
+            print(f"[{meta['ticket_id']}] Attempt {attempt} failed: {e}")
+            time.sleep(1.5)
+
+    raise RuntimeError(
+        f"Failed to generate TicketBody after {MAX_RETRIES_PER_TICKET} attempts."
+    )
+
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("===================================================")
+    print(" Qognus Demo Platform — LangChain Structured Tickets")
+    print("===================================================")
+    print(f"Ollama model: {OLLAMA_MODEL}")
+    print(f"Output JSONL: {OUT_JSONL}")
+    print(f"Target total tickets: {TOTAL_TICKETS}")
+
+    # Check how many tickets we already have (if any)
+    existing_max_idx = load_existing_max_index(OUT_JSONL)
+
+    if existing_max_idx >= TOTAL_TICKETS:
+        print(f"Already have {existing_max_idx} tickets (>= target). Nothing to do.")
+        return
+
+    already_have = existing_max_idx
+    to_generate = TOTAL_TICKETS - already_have
+
+    if existing_max_idx == 0:
+        print("No existing tickets found. Will generate from TCK-000001.")
+    else:
+        print(
+            f"Found existing tickets up to TCK-{existing_max_idx:06d}. "
+            f"Will append {to_generate} more (to reach {TOTAL_TICKETS})."
+        )
+
+    # Build the LLM chain once
+    chain = make_chain()
+
+    generated = 0
+    failed = 0
+
+    # Open file in APPEND mode (do NOT delete/overwrite)
+    with OUT_JSONL.open("a", encoding="utf-8") as f_out:
+        # start from existing_max_idx + 1 up to TOTAL_TICKETS
+        for idx in tqdm(
+            range(existing_max_idx + 1, TOTAL_TICKETS + 1),
+            desc="Generating tickets"
+        ):
+            meta = build_metadata(idx)
+            try:
+                body = generate_ticket_body(chain, meta)
+            except Exception as e:
+                print(f"[{meta['ticket_id']}] FAILED: {e}")
+                failed += 1
+                continue
+
+            ticket = {
+                **meta,
+                "summary": body.summary,
+                "description": body.description,
+                "topics": body.topics,
+            }
+
+            f_out.write(json.dumps(ticket, ensure_ascii=False) + "\n")
+            generated += 1
+
+    print("===================================================")
+    print(f"Previously existing: {already_have}")
+    print(f"Newly generated:    {generated}")
+    print(f"Failed:             {failed}")
+    print(f"Total now (approx): {already_have + generated}")
+    print(f"Written to:         {OUT_JSONL}")
+    print("===================================================")
+
+
+if __name__ == "__main__":
+    main()
+
+
+==================================================
+FILE PATH: web\index.html
+==================================================
+
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qognus Demo Platform</title>
+
+  <meta
+    name="description"
+    content="Qognus Demo Platform — applied AI systems for energy, industry, cybersecurity, and critical operations."
+  />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bgDark: "#020617",
+            card: "#0f172a",
+            accent: "#38bdf8",
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <script src="./js/charts.js" defer></script>
+  <script src="./js/tabs.js" defer></script>
+  <script src="./js/gridsense_card.js" defer></script>
+
+  <style>
+    body {
+      background-color: #020617;
+    }
+    .card {
+      background-color: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 1rem;
+      padding: 2rem;
+    }
+    .fade-in {
+      animation: fadeIn 0.4s ease-out forwards;
+      opacity: 0;
+    }
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+
+<body class="h-full text-slate-200 font-sans">
+  <header
+    class="border-b border-slate-800 sticky top-0 z-40 bg-bgDark/90 backdrop-blur"
+  >
+    <div
+      class="mx-auto px-6 py-4 flex items-center justify-between max-w-7xl"
+    >
+      <div class="text-xl font-bold tracking-tight">QOGNUS</div>
+      <nav class="flex gap-8 text-slate-300 text-sm">
+        <a href="#overview" class="hover:text-white">Overview</a>
+        <a href="#cards" class="hover:text-white">Systems</a>
+        <a href="#contact" class="hover:text-white">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <section id="overview" class="max-w-7xl mx-auto px-6 pt-16 pb-20">
+    <h1
+      class="text-4xl md:text-5xl font-bold tracking-tight text-white mb-6 leading-tight"
+    >
+      Applied AI Systems for Energy, Industry, Cybersecurity,
+      and Beyond.
+    </h1>
+    <p class="text-slate-400 max-w-2xl text-lg">
+      The Qognus Demo Platform illustrates how modern enterprises apply machine
+      learning across telemetry pipelines, security analytics, industrial
+      automation, and large-scale anomaly detection.
+    </p>
+  </section>
+
+  <section id="cards" class="max-w-7xl mx-auto px-6 pb-24">
+    <h2 class="text-2xl font-semibold text-white mb-6">Product Systems</h2>
+    <div id="cardContainer" class="space-y-10"></div>
+  </section>
+
+  <footer id="contact" class="border-t border-slate-800 py-10 mt-12">
+    <div class="max-w-7xl mx-auto px-6 text-slate-400 text-sm">
+      <p class="font-semibold text-slate-300">Contact</p>
+      <p class="mt-2">
+        For enterprise demos or partnership discussions, reach out via your
+        usual channels.
+      </p>
+    </div>
+  </footer>
+
+  <script type="module">
+    import { loadAllCards } from "./js/load_cards.js";
+
+    // Load all known components; missing ones will just log a warning.
+    loadAllCards();
+  </script>
+</body>
+</html>
+
+==================================================
+FILE PATH: web\components\gridsense_card.html
+==================================================
+
+<section
+  class="mt-10 max-w-5xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl"
+>
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-6 mb-6">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        GridSense — Anomaly Detection
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-xl">
+        SCADA-grade, multivariate anomaly detection across substations.
+      </p>
+    </div>
+
+    <div
+      class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
+    >
+      <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400"></span>
+      Energy &amp; Utility AI
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div data-tab-group="gridsense" class="mt-2">
+    <!-- Tab buttons -->
+    <div
+      class="flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400"
+    >
+      <button
+        type="button"
+        data-tab="timeseries"
+        class="pb-3 border-b-2 border-sky-500 text-slate-50"
+      >
+        Timeseries
+      </button>
+      <button
+        type="button"
+        data-tab="embedding"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Embedding Space
+      </button>
+      <button
+        type="button"
+        data-tab="health"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Model Health
+      </button>
+    </div>
+
+    <!-- Timeseries panel -->
+    <div
+      data-tab-panel="timeseries"
+      class="pt-5 space-y-4"
+      data-tab-active
+    >
+      <p class="text-sm text-slate-300 max-w-3xl">
+        Rolling-window anomaly scores over synthetic load telemetry (MW) for a
+        single substation. Peaks indicate deviations in power balance, thermal
+        response, and voltage sag.
+      </p>
+
+      <div
+        class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/70 overflow-hidden"
+      >
+        <!-- The explicit height (h-64 + absolute inset-0) is important so Chart.js
+             has a real drawing area. -->
+        <canvas
+        data-gs-timeseries
+        class="absolute inset-0 w-full h-full"
+        ></canvas>
+
+      </div>
+
+      <p class="mt-2 text-xs text-slate-400">
+        Rolling-window anomaly detection across
+        <span class="font-semibold">16 substations</span>, using
+        physics-informed synthetic SCADA telemetry (load, voltage, current,
+        temperature, frequency). Anomaly scores reflect deviations in power
+        balance, thermal response, and voltage sag behaviour.
+      </p>
+    </div>
+
+    <!-- Embedding space panel -->
+    <div data-tab-panel="embedding" class="hidden pt-5 space-y-4">
+      <p class="text-sm text-slate-300 max-w-3xl">
+        High-dimensional telemetry windows are projected into a 2D/3D manifold.
+        Clusters correspond to stable operating regimes; sparse regions and
+        isolated points highlight emerging failure modes and rare events.
+      </p>
+
+      <div
+        class="relative h-64 rounded-2xl border border-slate-800 bg-slate-950/70 flex items-center justify-center"
+      >
+        <p class="text-xs text-slate-500">
+          (Demo placeholder) – this panel can be wired to a real UMAP/HDBSCAN
+          embedding exported from the GridSense pipeline.
+        </p>
+      </div>
+
+      <ul class="mt-2 text-xs text-slate-400 list-disc list-inside space-y-1">
+        <li>Each point = a multi-minute SCADA window across load &amp; sensors.</li>
+        <li>Colour channels can encode anomaly score, asset type, or region.</li>
+        <li>
+          Used to brief operations teams: “what does ‘normal’ look like across
+          the fleet?”
+        </li>
+      </ul>
+    </div>
+
+    <!-- Model health panel -->
+    <div data-tab-panel="health" class="hidden pt-5 space-y-4">
+      <p class="text-sm text-slate-300 max-w-3xl">
+        Lightweight supervised labels from the synthetic pipeline are used to
+        score anomaly thresholds. This is not a benchmark, but a health check
+        that mirrors how the system behaves on real fleets.
+      </p>
+
+      <div
+        class="grid gap-4 md:grid-cols-3 text-xs text-slate-200 mt-2"
+      >
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
+            Precision (grace window)
+          </p>
+          <p
+            id="gs-metric-precision"
+            class="text-lg font-semibold text-emerald-400"
+          >
+            —
+          </p>
+          <p class="mt-1 text-[0.7rem] text-slate-500">
+            Fraction of raised alerts that coincide with labelled incidents
+            within a configurable time window.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
+            Recall (grace window)
+          </p>
+          <p
+            id="gs-metric-recall"
+            class="text-lg font-semibold text-emerald-400"
+          >
+            —
+          </p>
+          <p class="mt-1 text-[0.7rem] text-slate-500">
+            Share of labelled incidents that are caught by the detector with a
+            timely alert.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-slate-400 text-[0.7rem] uppercase tracking-wide mb-1">
+            Fleet anomaly rate
+          </p>
+          <p
+            id="gs-metric-rate"
+            class="text-lg font-semibold text-emerald-400"
+          >
+            —
+          </p>
+          <p class="mt-1 text-[0.7rem] text-slate-500">
+            Percentage of windows flagged as anomalous across the synthetic
+            fleet—used to tune “pager fatigue” vs. coverage.
+          </p>
+        </div>
+      </div>
+
+      <p class="mt-3 text-xs text-slate-400">
+        Metrics above are populated from the demo pipeline’s summary JSON
+        (precision/recall with grace windows, anomaly rate, and optional
+        calibration notes).
+      </p>
+    </div>
+  </div>
+</section>
+
+
+==================================================
+FILE PATH: web\js\charts.js
+==================================================
+
+function renderSparkline(ctx, scores) {
+    return new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: scores.map((_, i) => i),
+            datasets: [{
+                data: scores,
+                borderColor: "#4ade80",
+                backgroundColor: "rgba(74,222,128,0.1)",
+                tension: 0.25,
+                pointRadius: 0,
+                borderWidth: 1.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { display: false }, y: { display: false } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+
+==================================================
+FILE PATH: web\js\gridsense_card.js
+==================================================
+
+// web/js/gridsense_card.js
+
+// We expose this function globally so load_cards.js can call it 
+// AFTER the HTML is injected.
+window.initGridSense = function () {
+  console.log('[GridSense] Initializing chart...');
+  
+  const canvas =
+    document.querySelector('[data-gs-timeseries]') ||
+    document.getElementById('gsTimeseries');
+
+  if (!canvas) {
+    console.warn('[GridSense] No timeseries canvas found.');
+    return;
+  }
+
+  if (!window.Chart) {
+    console.warn('[GridSense] Chart.js not loaded.');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+
+  // --- Demo Data Generation ---
+  const pointsPerHour = 12; // 5-min buckets
+  const hours = 24;
+  const totalPoints = pointsPerHour * hours;
+  const labels = [];
+  const data = [];
+  const now = new Date();
+  const start = new Date(now.getTime() - hours * 60 * 60 * 1000);
+
+  for (let i = 0; i < totalPoints; i++) {
+    const t = new Date(start.getTime() + i * 5 * 60 * 1000);
+    const hh = String(t.getHours()).padStart(2, '0');
+    const mm = String(t.getMinutes()).padStart(2, '0');
+    labels.push(`${hh}:${mm}`);
+
+    let v = 0.03 + 0.02 * Math.sin((2 * Math.PI * i) / (pointsPerHour * 6));
+    
+    // Inject incident spikes
+    [4, 11, 18].forEach((h) => {
+      const centerIdx = (h * pointsPerHour) | 0;
+      const dist = Math.abs(i - centerIdx);
+      if (dist < pointsPerHour * 0.8) {
+        const amp = 0.45;
+        const width = pointsPerHour * 0.9;
+        v += amp * Math.exp(-Math.pow(dist, 2) / (2 * Math.pow(width, 2)));
+      }
+    });
+
+    v += (Math.random() - 0.5) * 0.02;
+    data.push(Math.max(0, Math.min(1, v)));
+  }
+
+  if (canvas._gsChart) canvas._gsChart.destroy();
+
+  canvas._gsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Anomaly score',
+        data,
+        tension: 0.25,
+        pointRadius: 0,
+        borderWidth: 2,
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56, 189, 248, 0.10)',
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { display: false },
+        y: { 
+          display: true, 
+          min: 0, max: 1,
+          grid: { color: 'rgba(30, 64, 175, 0.30)' },
+          ticks: { color: '#64748b' }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+
+  console.log('[GridSense] Chart successfully rendered.');
+};
+
+==================================================
+FILE PATH: web\js\load_cards.js
+==================================================
+
+/**
+ * web/js/load_cards.js
+ */
+
+export async function loadAllCards() {
+  const container = document.getElementById("cardContainer");
+  
+  if (!container) {
+    console.warn("[Cards] Container element 'cardContainer' not found.");
+    return;
+  }
+
+  async function loadCard(name) {
+    const url = `./components/${name}_card.html`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return;
+
+      const html = await response.text();
+      const wrapper = document.createElement("div");
+      wrapper.classList.add("fade-in");
+      wrapper.innerHTML = html;
+
+      container.appendChild(wrapper);
+      console.log(`[Cards] Loaded HTML for ${name}`);
+      
+      // === NEW LOGIC: Initialize specific card scripts ===
+      if (name === 'gridsense' && window.initGridSense) {
+        window.initGridSense();
+      }
+
+      // Activate tabs for this new card
+      if (window.activateTabs) {
+         window.activateTabs(wrapper);
+      }
+      
+    } catch (err) {
+      console.error(`[Cards] Failed to load card: ${name}`, err);
+    }
+  }
+
+  const components = ["gridsense"];
+  for (const c of components) {
+    await loadCard(c);
+  }
+}
+
+==================================================
+FILE PATH: web\js\tabs.js
+==================================================
+
+function activateTabs(root) {
+    const tabs = root.querySelectorAll(".gs-tab");
+    const panels = root.querySelectorAll(".gs-panel");
+
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.remove("active-tab"));
+            tab.classList.add("active-tab");
+
+            const id = tab.dataset.tab;
+            panels.forEach(p =>
+                p.classList.toggle("hidden", p.id !== `gs-tab-${id}`)
+            );
+        });
+    });
+}
+

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qognus Demo Platform</title>
+
+  <meta
+    name="description"
+    content="Qognus Demo Platform — applied AI systems for energy, industry, cybersecurity, and critical operations."
+  />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bgDark: "#020617",
+            card: "#0f172a",
+            accent: "#38bdf8",
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out forwards',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0', transform: 'translateY(10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          }
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      background-color: #020617;
+      scroll-behavior: smooth;
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <script src="./data/ticket_points.js" defer></script> 
+  <script src="./data/ticket_summary.js" defer></script>
+  <script src="./data/gridsense_timeseries_artifacts.js" defer></script>
+
+  <script src="./js/charts.js" defer></script>
+  <script src="./js/tabs.js" defer></script>
+  <script src="./js/gridsense_card.js" defer></script>
+
+</head>
+
+<body class="h-full text-slate-200 font-sans selection:bg-sky-500/30 selection:text-sky-200">
+  
+  <header
+    class="border-b border-slate-800 sticky top-0 z-50 bg-bgDark/90 backdrop-blur-md supports-[backdrop-filter]:bg-bgDark/60"
+  >
+    <div
+      class="mx-auto px-6 py-4 flex items-center justify-between max-w-7xl"
+    >
+      <div class="flex items-center gap-3">
+        <div class="h-6 w-6 rounded bg-gradient-to-br from-sky-400 to-indigo-500"></div>
+        <div class="text-xl font-bold tracking-tight text-white">QOGNUS</div>
+      </div>
+      
+      <nav class="flex gap-8 text-slate-400 text-sm font-medium">
+        <a href="#overview" class="hover:text-white transition-colors">Overview</a>
+        <a href="#cards" class="hover:text-white transition-colors">Systems</a>
+        <a href="#contact" class="hover:text-white transition-colors">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <section id="overview" class="max-w-7xl mx-auto px-6 pt-20 pb-20">
+    <div class="max-w-3xl fade-in" style="animation-delay: 0.1s;">
+        <h1
+        class="text-5xl md:text-6xl font-bold tracking-tight text-white mb-8 leading-tight"
+        >
+        Applied AI Systems for <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-emerald-400">Critical Operations</span>.
+        </h1>
+        <p class="text-slate-400 text-xl leading-relaxed">
+        The Qognus Demo Platform illustrates how modern enterprises apply machine
+        learning across telemetry pipelines, security analytics, industrial
+        automation, and large-scale anomaly detection.
+        </p>
+        
+        <div class="mt-10 flex gap-4">
+            <a href="#cards" class="px-6 py-3 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-medium transition-colors border border-slate-700">
+                Explore Systems
+            </a>
+            <a href="https://github.com/qognus" target="_blank" class="px-6 py-3 rounded-full text-slate-400 hover:text-white font-medium transition-colors flex items-center gap-2">
+                View Source <span>&rarr;</span>
+            </a>
+        </div>
+    </div>
+  </section>
+
+  <section id="cards" class="max-w-7xl mx-auto px-6 pb-32">
+    <div class="flex items-center gap-4 mb-10 border-b border-slate-800 pb-4 fade-in" style="animation-delay: 0.2s;">
+        <h2 class="text-2xl font-semibold text-white">Active Product Systems</h2>
+        <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">All Systems Operational</span>
+    </div>
+    
+    <div id="cardContainer" class="space-y-16">
+        </div>
+  </section>
+
+  <footer id="contact" class="border-t border-slate-800 bg-slate-900/30">
+    <div class="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row justify-between gap-10">
+      
+      <div class="max-w-md">
+        <div class="flex items-center gap-2 mb-4">
+            <div class="h-4 w-4 rounded bg-slate-600"></div>
+            <span class="font-bold text-slate-200">QOGNUS</span>
+        </div>
+        <p class="text-slate-500 text-sm leading-relaxed">
+            A fully synthetic, production-style environment for applied AI/ML demos. 
+            Simulated data generated locally via Ollama and physics-based models. 
+            No real customer data used.
+        </p>
+      </div>
+
+      <div class="text-sm text-slate-400">
+        <h4 class="font-semibold text-slate-200 mb-4">Contact</h4>
+        <p class="mb-2 hover:text-white transition-colors cursor-pointer">solutions@qognus.com</p>
+        <p class="mb-2 hover:text-white transition-colors cursor-pointer">github.com/qognus</p>
+        <p class="mt-6 text-xs text-slate-600">
+            &copy; 2025 Qognus Demo Platform. MIT License.
+        </p>
+      </div>
+      
+    </div>
+  </footer>
+
+  <script type="module">
+    import { loadAllCards } from "./js/load_cards.js";
+
+    // Load all component cards (GridSense, etc.)
+    // Missing components will just log a warning but not break the page.
+    loadAllCards();
+  </script>
+</body>
+</html>
