@@ -1,5 +1,53 @@
 // web/js/gridsense_card.js
 
+let gsChartInstance = null;
+let gsEmbedInstance = null;
+
+const verticalLinePlugin = {
+  id: 'verticalLine',
+  afterDatasetsDraw(chart, args, options) {
+    if (!chart.chartArea || !chart.scales.x) return;
+    const { ctx, chartArea: { top, bottom, right }, scales: { x } } = chart;
+    const lines = options.lines || [];
+    if (lines.length === 0) return;
+
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.font = 'bold 10px monospace';
+
+    lines.forEach(lineItem => {
+        const { index, color, text } = lineItem;
+        const meta = chart.getDatasetMeta(0);
+        
+        if (index < 0 || index >= meta.data.length) return;
+
+        const xPos = x.getPixelForValue(index);
+        if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) return;
+
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.moveTo(xPos, top);
+        ctx.lineTo(xPos, bottom);
+        ctx.stroke();
+        
+        ctx.fillStyle = color;
+        const textWidth = ctx.measureText(text).width;
+        const padding = 6;
+
+        if (xPos + textWidth + padding > right) {
+            ctx.textAlign = 'right';
+            ctx.fillText(text, xPos - padding, top + 12);
+        } else {
+            ctx.textAlign = 'left';
+            ctx.fillText(text, xPos + padding, top + 12);
+        }
+    });
+    
+    ctx.restore();
+  }
+};
+
 window.initGridSense = function () {
   console.log('[GridSense] Initializing...');
 
@@ -12,106 +60,248 @@ window.initGridSense = function () {
   const series = dataObj.series;
   const metrics = dataObj.summary;
 
-  // --- NEW: SMART SELECTION LOGIC ---
-  // Instead of just taking series[0], we find the substation 
-  // with the highest number of anomalies.
-  const subStats = {};
-  
-  // 1. Group and count anomalies per substation
+  const RECENT_WINDOW = 144; // 12 hours
+
+  // 1. Global Time (UTC)
+  let globalMaxTs = 0;
+  if (series.length > 0) {
+      series.forEach(d => {
+          const ts = new Date(d.timestamp).getTime();
+          if (ts > globalMaxTs) globalMaxTs = ts;
+      });
+  }
+  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
+
+  // 2. Aggregate Data
+  const subMap = {};
+
   series.forEach(d => {
-    if (!subStats[d.substation_id]) {
-        subStats[d.substation_id] = { id: d.substation_id, count: 0, data: [] };
+    if (!subMap[d.substation_id]) {
+        subMap[d.substation_id] = { 
+            id: d.substation_id, 
+            status: 'clean', 
+            maxScore: 0,
+            region: d.region,
+            data: [] 
+        };
     }
-    subStats[d.substation_id].data.push(d);
-    if (d.predicted_anomaly === 1) {
-        subStats[d.substation_id].count++;
-    }
+    const entry = subMap[d.substation_id];
+    entry.data.push(d);
+    
+    if (d.anomaly_score > entry.maxScore) entry.maxScore = d.anomaly_score;
   });
 
-  // 2. Sort by anomaly count (descending)
-  const sortedSubs = Object.values(subStats).sort((a, b) => b.count - a.count);
-  
-  // 3. Pick the winner (or the first one if everyone is clean)
-  const bestSub = sortedSubs[0];
-  
-  console.log(`[GridSense] Selected ${bestSub.id} with ${bestSub.count} anomalies.`);
+  // 3. Determine Status
+  Object.values(subMap).forEach(sub => {
+      const anyAnomaly = sub.data.some(d => d.predicted_anomaly === 1);
+      
+      if (anyAnomaly) {
+          const activeAnomaly = sub.data.some(d => {
+              return d.predicted_anomaly === 1 && new Date(d.timestamp).getTime() > cutoffTime;
+          });
+          
+          if (activeAnomaly) {
+              sub.status = 'active'; 
+          } else {
+              sub.status = 'historic'; 
+          }
+      } else {
+          sub.status = 'clean'; 
+      }
+  });
 
-  // Render
-  renderTimeseries(bestSub.data, bestSub.id);
-  renderPseudoEmbedding(series);
-  updateHealthMetrics(metrics);
+  // 4. Sort
+  const subList = Object.values(subMap).sort((a, b) => {
+      return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  // 5. Render
+  if (subList.length > 0) {
+      const initialSub = subList[0];
+      renderSubstationGrid(subList, initialSub.id, globalMaxTs);
+      renderTimeseries(initialSub.data, initialSub.id, globalMaxTs);
+      renderPseudoEmbedding(series, cutoffTime);
+      updateHealthMetrics(metrics);
+  }
 };
 
-/**
- * Renders the time-series chart with a blue signal line and explicit red dots for anomalies.
- */
-function renderTimeseries(dataPoints, subId) {
+function renderSubstationGrid(subList, activeId, globalMaxTs) {
+    const listContainer = document.getElementById('gs-substation-list');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+
+    subList.forEach(sub => {
+        const isActive = sub.id === activeId;
+        const shortId = sub.id.split('-')[1] || sub.id;
+
+        // CHANGED: Compact styling for narrower column (h-8, smaller text)
+        let baseClass = "h-8 w-full rounded flex items-center justify-center cursor-pointer transition-all duration-200 border relative group";
+        
+        if (isActive) {
+            baseClass += " bg-sky-500/10 border-sky-500 text-sky-100 shadow-[0_0_8px_rgba(14,165,233,0.3)]";
+        } else if (sub.status === 'active') {
+            baseClass += " bg-red-500/10 border-red-500/50 text-red-100 hover:bg-red-500/20";
+        } else if (sub.status === 'historic') {
+            baseClass += " bg-slate-800/80 border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-slate-200";
+        } else {
+            baseClass += " bg-slate-800/40 border-slate-800 text-slate-500 hover:bg-slate-800 hover:text-slate-300";
+        }
+
+        const el = document.createElement('div');
+        el.className = baseClass;
+        el.title = `${sub.id} (${sub.region}) - ${sub.status}`;
+        
+        el.onclick = () => {
+            renderSubstationGrid(subList, sub.id, globalMaxTs);
+            renderTimeseries(sub.data, sub.id, globalMaxTs);
+        };
+
+        let dot = '';
+        if (sub.status === 'active') {
+           dot = `<span class="absolute -top-1 -right-1 flex h-2 w-2">
+             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+             <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+           </span>`;
+        } else if (sub.status === 'historic') {
+           dot = `<span class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-slate-500 ring-1 ring-slate-900"></span>`;
+        }
+
+        el.innerHTML = `
+            ${dot}
+            <span class="text-[0.6rem] font-mono font-bold">${shortId}</span>
+        `;
+        
+        listContainer.appendChild(el);
+    });
+}
+
+function renderTimeseries(dataPoints, subId, globalMaxTs) {
   const canvas = document.querySelector('[data-gs-timeseries]');
   if (!canvas || !window.Chart) return;
-  const ctx = canvas.getContext('2d');
-
-  // Limit to last 150 points for a clean, readable view
-  const slice = dataPoints.slice(-150); 
   
-  // Prepare Labels (HH:MM)
+  if (!dataPoints || dataPoints.length === 0) {
+      if (gsChartInstance) gsChartInstance.destroy();
+      return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const windowSize = 150;
+  const cutoffTime = globalMaxTs - (12 * 60 * 60 * 1000);
+
+  let startIndex = Math.max(0, dataPoints.length - windowSize);
+  let viewModeText = "Live telemetry";
+
+  let foundIndex = -1;
+  for (let i = dataPoints.length - 1; i >= 0; i--) {
+      if (dataPoints[i].predicted_anomaly === 1) {
+          foundIndex = i;
+          break;
+      }
+  }
+
+  if (foundIndex !== -1) {
+      const anomalyTime = new Date(dataPoints[foundIndex].timestamp).getTime();
+      if (anomalyTime > cutoffTime) {
+          const centerOffset = Math.floor(windowSize / 2);
+          startIndex = Math.max(0, foundIndex - centerOffset);
+          if (startIndex + windowSize > dataPoints.length) {
+              startIndex = Math.max(0, dataPoints.length - windowSize);
+          }
+          const eventTime = new Date(dataPoints[foundIndex].timestamp);
+          const dateStr = eventTime.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          const timeStr = eventTime.toLocaleTimeString(undefined, { hour: '2-digit', minute:'2-digit' });
+          viewModeText = `Incident review: <span class="text-white">${dateStr} ${timeStr}</span>`;
+      }
+  }
+
+  const slice = dataPoints.slice(startIndex, startIndex + windowSize); 
   const labels = slice.map(d => {
     const date = new Date(d.timestamp);
-    return `${date.getUTCHours()}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+    const month = date.toLocaleString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const hour = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    return `${month} ${day} ${hour}:${min}`;
   });
   
-  // Main Signal Data
   const scores = slice.map(d => d.anomaly_score || 0);
-
-  // Anomaly Dots Data: 
-  // We map normal points to 'null' so Chart.js skips drawing them in this dataset.
   const anomalyDots = slice.map(d => d.predicted_anomaly === 1 ? (d.anomaly_score || 0) : null);
-  
-  // Clean up previous chart instance if it exists
-  if (canvas._gsChart) canvas._gsChart.destroy();
 
-  canvas._gsChart = new Chart(ctx, {
+  const getPointColor = (ctx) => {
+      const i = ctx.dataIndex;
+      const point = slice[i];
+      if (!point) return '#64748b'; 
+      const pointTs = new Date(point.timestamp).getTime();
+      return pointTs > cutoffTime ? '#ef4444' : '#64748b'; 
+  };
+
+  const getSegmentColor = (ctx) => {
+      const i = ctx.p1DataIndex; 
+      const point = slice[i];
+      if (!point || point.predicted_anomaly !== 1) return '#38bdf8'; 
+      const pointTs = new Date(point.timestamp).getTime();
+      return pointTs > cutoffTime ? '#ef4444' : '#64748b'; 
+  };
+
+  const lineMarkers = [];
+  let isAnomalyActive = false;
+
+  slice.forEach((point, index) => {
+      if (point.predicted_anomaly === 1) {
+          if (!isAnomalyActive) {
+              const pointTs = new Date(point.timestamp).getTime();
+              const isRecent = pointTs > cutoffTime;
+              
+              lineMarkers.push({
+                  index: index,
+                  color: isRecent ? '#ef4444' : '#64748b',
+                  text: isRecent ? 'ANOMALY DETECTED' : 'HISTORIC INCIDENT'
+              });
+              isAnomalyActive = true;
+          }
+      } else {
+          isAnomalyActive = false;
+      }
+  });
+
+  if (gsChartInstance) gsChartInstance.destroy();
+
+  gsChartInstance = new Chart(ctx, {
     type: 'line',
+    plugins: [verticalLinePlugin],
     data: {
       labels: labels,
       datasets: [
-        // Dataset 1: The Main Signal Line
         {
-          label: 'Normal Score',
+          label: 'Score',
           data: scores,
-          borderColor: '#38bdf8', // Sky Blue
+          borderColor: '#38bdf8',
           borderWidth: 2,
-          // Segment styling: Color the line segment red if it connects to an anomaly
-          segment: {
-            borderColor: ctx => {
-              const i = ctx.p1DataIndex;
-              return slice[i].predicted_anomaly === 1 ? '#ef4444' : '#38bdf8';
-            }
-          },
+          segment: { borderColor: getSegmentColor },
           backgroundColor: (context) => {
             const chart = context.chart;
             const {ctx, chartArea} = chart;
             if (!chartArea) return null;
-            // Subtle blue gradient fill
             const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
             gradient.addColorStop(0, 'rgba(56, 189, 248, 0.0)');
             gradient.addColorStop(1, 'rgba(56, 189, 248, 0.2)');
             return gradient;
           },
           fill: true,
-          pointRadius: 0, // Hide points on the main line for a smooth look
+          pointRadius: 0,
           tension: 0.1,
-          order: 2 // Render behind the dots
+          order: 2
         },
-        // Dataset 2: Explicit Red Dots for Anomalies
         {
-          label: 'Anomaly Detected',
+          label: 'Anomaly',
           data: anomalyDots,
-          borderColor: '#ef4444', // Red
-          backgroundColor: '#ef4444',
-          pointRadius: 4, 
+          borderColor: getPointColor,
+          backgroundColor: getPointColor,
+          pointRadius: 4,
           pointHoverRadius: 6,
-          showLine: false, // Don't connect these dots
-          order: 1 // Render on top of the line
+          showLine: false,
+          order: 1
         }
       ]
     },
@@ -119,13 +309,16 @@ function renderTimeseries(dataPoints, subId) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { intersect: false, mode: 'index' },
-      plugins: { legend: { display: false } },
+      plugins: { 
+          legend: { display: false },
+          verticalLine: { lines: lineMarkers }
+      },
+      animation: { duration: 0 },
       scales: {
         x: { display: false },
         y: { 
-          display: true,
+          display: true, 
           min: 0, 
-          // Dynamic headroom so peaks don't hit the ceiling
           suggestedMax: Math.max(...scores) * 1.1,
           grid: { color: 'rgba(30, 64, 175, 0.2)' },
           ticks: { color: '#64748b', font: {size: 10} }
@@ -134,109 +327,129 @@ function renderTimeseries(dataPoints, subId) {
     }
   });
 
-  // Update footer text to show which substation we are viewing
   const footer = document.getElementById('gs-timeseries-footer');
-  if(footer) footer.innerHTML = `Visualization of real inference scores for <span class="font-mono text-sky-400">${subId}</span>.`;
+  if(footer) footer.innerHTML = `${viewModeText} for <span class="font-mono text-sky-400 font-bold">${subId}</span>.`;
 }
 
-/**
- * Renders a "Pseudo-Embedding" scatter plot.
- * Mapping: Radius = Anomaly Score (High score = further from center).
- */
-function renderPseudoEmbedding(allSeriesData) {
+function renderPseudoEmbedding(allSeriesData, cutoffTime) {
   const canvas = document.querySelector('[data-gs-embedding]');
   if (!canvas || !window.Chart) return;
   const ctx = canvas.getContext('2d');
 
-  // Downsample: Take ~1000 random points max to keep performance high
-  const maxPoints = 1000;
-  const step = Math.ceil(allSeriesData.length / maxPoints);
-  const data = [];
+  const anomalies = [];
+  const nominals = [];
 
-  for (let i = 0; i < allSeriesData.length; i += step) {
-    const point = allSeriesData[i];
-    const score = point.anomaly_score || 0;
-    const isAnom = point.predicted_anomaly === 1;
+  allSeriesData.forEach(d => {
+      const date = new Date(d.timestamp);
+      const dateStr = date.toLocaleString('en-US', { 
+          month: 'short', 
+          day: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: false
+      });
 
-    // Pseudo-Projection Logic:
-    // Normal points cluster near center (0,0) with random noise.
-    // Anomalies explode outward based on score magnitude.
-    const angle = Math.random() * Math.PI * 2;
-    // Radius base: score is exponentiated slightly to push anomalies visibly out
-    const r = (Math.random() * 0.5) + (score * 5.0); 
+      const point = {
+          ...d, 
+          score: d.anomaly_score || 0,
+          isAnom: d.predicted_anomaly === 1,
+          isRecent: new Date(d.timestamp).getTime() > cutoffTime,
+          fullLabel: `[${d.substation_id}] ${dateStr}`
+      };
+      if (point.isAnom) anomalies.push(point);
+      else nominals.push(point);
+  });
 
-    data.push({
-      x: Math.cos(angle) * r,
-      y: Math.sin(angle) * r,
-      isAnom: isAnom,
-      score: score
-    });
+  const maxNominals = 800;
+  const step = Math.ceil(nominals.length / maxNominals);
+  const sampledNominals = [];
+  for (let i = 0; i < nominals.length; i += step) {
+      sampledNominals.push(nominals[i]);
   }
 
-  // Split into two datasets for easier coloring/legend
-  const normalPoints = data.filter(d => !d.isAnom);
-  const anomalyPoints = data.filter(d => d.isAnom);
+  const finalData = [...sampledNominals, ...anomalies].map(point => {
+      const date = new Date(point.timestamp);
+      
+      const hours = date.getHours() % 12; 
+      const mins = date.getMinutes();
+      const totalMinutes = (hours * 60) + mins;
+      
+      const angle = (totalMinutes / 720) * (2 * Math.PI);
+      
+      let r;
+      if (point.isAnom) {
+          r = 1.0 + (point.score * 4.0); 
+      } else {
+          r = Math.random() * 0.8; 
+      }
 
-  if (canvas._gsEmbedChart) canvas._gsEmbedChart.destroy();
+      return {
+          x: Math.sin(angle) * r,
+          y: -Math.cos(angle) * r, // Negative Cos to put 12:00 at Top
+          isAnom: point.isAnom,
+          isRecent: point.isRecent,
+          fullLabel: point.fullLabel,
+          statusLabel: point.isAnom ? (point.isRecent ? 'Active Anomaly' : 'Historic Anomaly') : 'Nominal'
+      };
+  });
 
-  canvas._gsEmbedChart = new Chart(ctx, {
+  const normalSet = finalData.filter(d => !d.isAnom);
+  const activeSet = finalData.filter(d => d.isAnom && d.isRecent);
+  const historicSet = finalData.filter(d => d.isAnom && !d.isRecent);
+
+  if (gsEmbedInstance) gsEmbedInstance.destroy();
+
+  gsEmbedInstance = new Chart(ctx, {
     type: 'scatter',
     data: {
       datasets: [
-        {
-          label: 'Nominal',
-          data: normalPoints,
-          backgroundColor: '#38bdf8', // Sky Blue
-          pointRadius: 2
+        { 
+            label: 'Nominal', 
+            data: normalSet, 
+            backgroundColor: '#38bdf8', 
+            pointRadius: 2 
         },
-        {
-          label: 'Anomaly',
-          data: anomalyPoints,
-          backgroundColor: '#ef4444', // Red
-          pointRadius: 4
+        { 
+            label: 'Active Anomaly', 
+            data: activeSet, 
+            backgroundColor: '#ef4444', 
+            pointRadius: 5,
+            pointHoverRadius: 7
+        },
+        { 
+            label: 'Historic Anomaly', 
+            data: historicSet, 
+            backgroundColor: '#64748b', 
+            pointRadius: 3 
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      scales: {
-        // Hide axes for a cleaner "embedding space" look
-        x: { display: false, min: -6, max: 6 },
-        y: { display: false, min: -6, max: 6 }
-      },
-      plugins: {
-        legend: { display: true, labels: { color: '#94a3b8' } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => `Score: ${ctx.raw.score.toFixed(3)}`
+      scales: { x: { display: false, min: -6, max: 6 }, y: { display: false, min: -6, max: 6 } },
+      plugins: { 
+          legend: { display: true, labels: { color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+                label: (ctx) => `${ctx.raw.fullLabel} (${ctx.raw.statusLabel})`
+            }
           }
-        }
       }
     }
   });
 }
 
-/**
- * Updates the HTML text elements with metrics from the JSON artifact.
- */
 function updateHealthMetrics(metrics) {
   const setVal = (id, val, colorClass) => {
     const el = document.getElementById(id);
     if(el) {
         el.innerText = val;
-        // Reset classes and apply new ones
         el.className = ''; 
-        if(colorClass) el.className = `text-2xl font-bold font-mono ${colorClass}`;
+        if(colorClass) el.className = `text-3xl font-bold font-mono ${colorClass}`;
     }
   };
-
-  const prec = (metrics.precision * 100).toFixed(1) + '%';
-  const rec = (metrics.recall * 100).toFixed(1) + '%';
-  const cont = (metrics.contamination * 100).toFixed(1) + '%';
-
-  // Use coloring to indicate health (Emerald = Good, Amber = Warning)
-  setVal('gs-metric-precision', prec, 'text-emerald-400');
-  setVal('gs-metric-recall', rec, 'text-emerald-400');
-  setVal('gs-metric-rate', cont, 'text-sky-400');
+  setVal('gs-metric-precision', (metrics.precision * 100).toFixed(1) + '%', 'text-emerald-400');
+  setVal('gs-metric-recall', (metrics.recall * 100).toFixed(1) + '%', 'text-emerald-400');
+  setVal('gs-metric-rate', (metrics.contamination * 100).toFixed(1) + '%', 'text-sky-400');
 }
