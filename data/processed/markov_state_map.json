@@ -1,0 +1,12 @@
+{
+  "SESSION_START": 0,
+  "APP_ACCESS": 1,
+  "DASHBOARD_VIEW": 2,
+  "LOGIN_PROMPT": 3,
+  "LOGIN_SUCCESS": 4,
+  "LOGOUT": 5,
+  "MFA_PROMPT": 6,
+  "MFA_SUCCESS": 7,
+  "REPORT_GEN": 8,
+  "SESSION_END": 9
+}

@@ -1,5 +1,6 @@
 /**
  * web/js/load_cards.js
+ * Dynamically loads HTML components for the Qognus Demo Platform.
  */
 
 export async function loadAllCards() {
@@ -27,7 +28,7 @@ export async function loadAllCards() {
       container.appendChild(wrapper);
       console.log(`[Cards] Injected HTML for ${name}`);
       
-      // 1. Initialize Tabs
+      // 1. Initialize Tabs (if tabs.js is loaded)
       if (window.activateTabs) {
          window.activateTabs(wrapper);
       }
@@ -38,9 +39,14 @@ export async function loadAllCards() {
         setTimeout(() => window.initGridSense(), 50);
       }
 
-      // --- HelioCloud (THIS WAS MISSING) ---
+      // --- HelioCloud ---
       if (name === 'heliocloud' && window.initHelioCloud) {
         setTimeout(() => window.initHelioCloud(), 50);
+      }
+      
+      // --- VaultShield (NEW) ---
+      if (name === 'vaultshield' && window.initVaultShield) {
+        setTimeout(() => window.initVaultShield(), 50);
       }
       
     } catch (err) {
@@ -48,7 +54,9 @@ export async function loadAllCards() {
     }
   }
 
-  const components = ["gridsense", "heliocloud"];
+  // Add 'vaultshield' to this list to load it
+  const components = ["gridsense", "heliocloud", "vaultshield"];
+  
   for (const c of components) {
     await loadCard(c);
   }
