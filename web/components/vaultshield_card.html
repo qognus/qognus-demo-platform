@@ -50,8 +50,7 @@
         <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
             <p class="text-slate-400 text-[0.65rem] uppercase font-bold tracking-wider mb-2">Current Threat Level</p>
             <div class="flex items-baseline gap-2">
-                <span id="vs-stat-threat-level" class="text-3xl font-mono font-bold text-rose-500">HIGH</span>
-                <span class="text-xs text-rose-400/80 font-medium animate-pulse">Active Attacks</span>
+                <span id="vs-stat-threat-level" class="text-3xl font-mono font-bold text-rose-500">ANALYZING</span>
             </div>
         </div>
         <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
@@ -74,7 +73,7 @@
 
     <div data-tab-content="forensics" class="hidden flex-1 flex flex-col animate-fade-in">
         <div class="flex items-center justify-between mb-4">
-            <h4 class="text-sm text-slate-300">Analysis of Most Anomalous Session</h4>
+            <h4 class="text-sm text-slate-300">Analysis of Top Anomalous Session</h4>
             <div id="vs-session-header" class="text-xs font-mono text-slate-500">ID: --</div>
         </div>
 
@@ -133,8 +132,8 @@
 
                 <div class="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
                     <div class="flex justify-between mb-1">
-                        <span class="text-sm text-slate-300">Mean Time to Detect</span>
-                        <span class="text-sm font-mono text-slate-200 font-bold">120ms</span>
+                        <span class="text-sm text-slate-300">Model Precision (PR-AUC)</span>
+                        <span id="vs-metric-prauc" class="text-sm font-mono text-amber-400 font-bold">--</span>
                     </div>
                 </div>
             </div>

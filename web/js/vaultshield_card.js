@@ -6,9 +6,9 @@
 window.initVaultShield = function() {
     console.log('[VaultShield] Initializing...');
 
-    // We expect window.VAULTSHIELD_ARTIFACTS to be loaded via <script src="./data/vaultshield_artifacts.js">
+    // Load from the merged artifacts file
     if (!window.VAULTSHIELD_ARTIFACTS) {
-        console.warn('[VaultShield] Artifacts not found. Run models/vaultshield_analytics/export_vaultshield.py first.');
+        console.warn('[VaultShield] Artifacts not found. Run pipelines/vaultshield/export_web_artifacts.py first.');
         return;
     }
 
@@ -18,6 +18,7 @@ window.initVaultShield = function() {
     renderAttackChart(data);
     renderForensics(data);
     renderDistChart(data);
+    renderMetrics(data);
 };
 
 /* --- 1. Overview Stats --- */
@@ -28,7 +29,6 @@ function renderOverviewStats(data) {
     document.getElementById('vs-stat-sessions').innerText = totalSessions.toLocaleString();
     document.getElementById('vs-stat-blocked').innerText = blockedCount.toLocaleString();
 
-    // Simple logic for threat level based on volume
     const elThreat = document.getElementById('vs-stat-threat-level');
     if(blockedCount > 1000) {
         elThreat.innerText = "CRITICAL";
@@ -48,10 +48,9 @@ function renderAttackChart(data) {
     if (!canvas || !window.Chart) return;
 
     const counts = data.attack_counts || {};
-    // Sort by count descending
     const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
     
-    const labels = sorted.map(x => x[0].replace(/([A-Z])/g, ' $1').trim()); // "PasswordSpray" -> "Password Spray"
+    const labels = sorted.map(x => x[0].replace(/_/g, ' '));
     const values = sorted.map(x => x[1]);
 
     new Chart(canvas, {
@@ -61,12 +60,7 @@ function renderAttackChart(data) {
             datasets: [{
                 label: 'Detected Sessions',
                 data: values,
-                backgroundColor: [
-                    '#f43f5e', // Rose
-                    '#f97316', // Orange
-                    '#eab308', // Yellow
-                    '#8b5cf6'  // Violet
-                ],
+                backgroundColor: ['#f43f5e', '#f97316', '#eab308', '#8b5cf6'],
                 borderRadius: 4,
                 barThickness: 40
             }]
@@ -76,21 +70,14 @@ function renderAttackChart(data) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { 
-                    beginAtZero: true, 
-                    grid: { color: '#1e293b' },
-                    ticks: { color: '#64748b' }
-                },
-                x: { 
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { weight: 'bold' } }
-                }
+                y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { weight: 'bold' } } }
             }
         }
     });
 }
 
-/* --- 3. Forensics Timeline (The cool part) --- */
+/* --- 3. Forensics Timeline (Rich Visuals) --- */
 function renderForensics(data) {
     const container = document.getElementById('vs-timeline-container');
     const explanationEl = document.getElementById('vs-explanation-text');
@@ -98,62 +85,46 @@ function renderForensics(data) {
     const scoreBar = document.getElementById('vs-score-bar');
     const headerEl = document.getElementById('vs-session-header');
 
-    if (!container) return;
+    if (!container || !data.top_anomaly) return;
 
-    // Grab the top anomalous session provided by the backend
     const session = data.top_anomaly;
-    if (!session) {
-        explanationEl.innerText = "No anomalies detected.";
-        return;
-    }
 
-    headerEl.innerText = `ID: ${session.session_id} | User: ${session.user_id}`;
+    headerEl.innerText = `ID: ${session.session_id.substring(0,8)}... | User: ${session.user_id}`;
     scoreEl.innerText = session.anomaly_score.toFixed(2);
     
-    // Anomaly score visual (assuming max reasonable score is around 10.0 for scaling)
-    const pct = Math.min(100, (session.anomaly_score / 10) * 100);
+    // Scale bar: assume 20 is a "huge" score
+    const pct = Math.min(100, (session.anomaly_score / 20) * 100);
     scoreBar.style.width = `${pct}%`;
 
-    // Parse explanation to find the "bad" transition step
-    // Format usually: "EVENT_A → EVENT_B"
     const badTransition = session.explanation || "";
     const [badStart, badEnd] = badTransition.split(' → ');
 
     explanationEl.innerHTML = `
-        <strong class="text-white">Attack Type:</strong> ${session.attack_type}<br>
+        <strong class="text-white">Attack Pattern:</strong> ${session.attack_type.replace(/_/g, ' ')}<br>
         <span class="opacity-80">
-        The system detected an extremely improbable transition: 
+        System flagged improbable transition: 
         <span class="text-rose-400 font-mono bg-rose-500/10 px-1 rounded">${badTransition}</span>. 
-        This sequence has a probability of <strong>${session.worst_prob.toExponential(2)}</strong> in normal traffic.
+        Probability: <strong>${session.worst_prob.toExponential(2)}</strong>.
         </span>
     `;
 
-    // --- Build Visual Nodes ---
-    // Since we don't have the full event list in the summary JSON (to save size), 
-    // we will reconstruct a "representative" timeline based on the explanation 
-    // or use the full events if provided.
-    // NOTE: The Python export script below ensures 'events' are included for the top anomaly.
-    
-    const events = session.events || ["SESSION_START", badStart, badEnd, "SESSION_END"];
-
-    container.innerHTML = ''; // Clear
+    // Render Timeline Nodes
+    container.innerHTML = ''; 
+    const events = session.events;
 
     events.forEach((evt, idx) => {
         const isLast = idx === events.length - 1;
-        
-        // Determine Node Color
-        let nodeColor = "bg-slate-800 border-slate-600 text-slate-400"; // Default
+        let nodeColor = "bg-slate-800 border-slate-600 text-slate-400";
         let lineColor = "bg-slate-700";
         
-        if (evt.includes("FAIL") || evt.includes("DENIED") || evt.includes("ATTEMPT")) {
+        if (evt.includes("fail") || evt.includes("denied")) {
             nodeColor = "bg-amber-900/50 border-amber-500 text-amber-200";
         }
-        if (evt === "LOGIN_SUCCESS" || evt === "MFA_SUCCESS") {
+        if (evt === "login_success" || evt.includes("approved")) {
             nodeColor = "bg-emerald-900/50 border-emerald-500 text-emerald-200";
         }
 
-        // Highlight the specific bad transition
-        // If this event and the next one match the explanation
+        // Highlight bad link
         let isBadLink = false;
         if (!isLast) {
             const nextEvt = events[idx + 1];
@@ -161,12 +132,9 @@ function renderForensics(data) {
                 isBadLink = true;
                 nodeColor = "bg-rose-900/80 border-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.5)]";
                 lineColor = "bg-gradient-to-r from-rose-500 to-rose-500 h-[2px]";
-            } else if (evt === badEnd && events[idx-1] === badStart) {
-                nodeColor = "bg-rose-900/80 border-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.5)]";
             }
         }
 
-        // HTML for Node
         const nodeHtml = `
             <div class="flex flex-col items-center relative group min-w-[100px]">
                 <div class="w-10 h-10 rounded-full border-2 ${nodeColor} flex items-center justify-center z-10 transition-transform group-hover:scale-110">
@@ -175,13 +143,9 @@ function renderForensics(data) {
                 <div class="mt-3 text-[0.65rem] font-mono text-slate-400 uppercase tracking-tight text-center px-1">
                     ${evt.replace(/_/g, ' ')}
                 </div>
-                <div class="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-xs px-2 py-1 rounded border border-slate-700 whitespace-nowrap z-20">
-                    Step ${idx+1}
-                </div>
             </div>
         `;
 
-        // HTML for Connector Line
         let connectorHtml = '';
         if (!isLast) {
             const lineClass = isBadLink ? "h-[3px] bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]" : "h-[2px] bg-slate-700";
@@ -192,23 +156,19 @@ function renderForensics(data) {
     });
 }
 
-/* --- 4. Score Distribution Chart --- */
+/* --- 4. Score Distribution (Mocked based on averages) --- */
 function renderDistChart(data) {
     const canvas = document.querySelector('[data-vs-dist-chart]');
     if (!canvas || !window.Chart) return;
-
-    // We assume data.distribution is a list of { label: '0-2', normal: 50, attack: 0 } bins
-    // If not, we mock it for the visual demo based on the averages
-    const bins = ['0-2', '2-4', '4-6', '6-8', '8-10', '10+'];
     
     new Chart(canvas, {
         type: 'line',
         data: {
-            labels: bins,
+            labels: ['0-5', '5-10', '10-15', '15-20', '20+'],
             datasets: [
                 {
                     label: 'Normal Traffic',
-                    data: [120, 450, 150, 20, 5, 0], // Peak at low scores
+                    data: [800, 150, 20, 5, 0],
                     borderColor: '#38bdf8',
                     backgroundColor: 'rgba(56, 189, 248, 0.1)',
                     fill: true,
@@ -216,7 +176,7 @@ function renderDistChart(data) {
                 },
                 {
                     label: 'Attack Traffic',
-                    data: [0, 5, 20, 80, 200, 150], // Peak at high scores
+                    data: [0, 10, 50, 200, 150],
                     borderColor: '#f43f5e',
                     backgroundColor: 'rgba(244, 63, 94, 0.1)',
                     fill: true,
@@ -227,13 +187,15 @@ function renderDistChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { 
-                legend: { labels: { color: '#94a3b8' } }
-            },
-            scales: {
-                y: { display: false },
-                x: { ticks: { color: '#64748b' }, grid: { display: false } }
-            }
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: { y: { display: false }, x: { ticks: { color: '#64748b' }, grid: { display: false } } }
         }
     });
+}
+
+function renderMetrics(data) {
+    const el = document.getElementById('vs-metric-prauc');
+    if (el && data.metrics) {
+        el.innerText = (data.metrics.pr_auc * 100).toFixed(1) + "%";
+    }
 }

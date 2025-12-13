@@ -1,0 +1,21 @@
+{
+  "START": {
+    "login_attempt": 1.0
+  },
+  "login_attempt": {
+    "mfa_challenge": 1.0
+  },
+  "mfa_challenge": {
+    "mfa_response": 1.0
+  },
+  "mfa_response": {
+    "token_issued": 1.0
+  },
+  "token_issued": {
+    "api_access": 1.0
+  },
+  "api_access": {
+    "api_access": 0.6698280802292264,
+    "END": 0.33017191977077365
+  }
+}
