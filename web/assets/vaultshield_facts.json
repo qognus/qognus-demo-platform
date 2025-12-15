@@ -1,0 +1,66 @@
+{
+  "product": "VaultShield",
+  "slug": "vaultshield",
+  "tagline": "Identity, access, and threat detection platform for modern cloud and enterprise environments.",
+  "capabilities": [
+    "Anomalous authentication detection across users, devices, and geographies",
+    "Policy-based authorization enforcement with conflict and drift detection",
+    "Adaptive risk scoring for login and API access attempts",
+    "Correlation of identity events with infrastructure and application context",
+    "Grace-period-aware alerting to reduce false positives during expected access changes",
+    "Audit-grade logging and forensic timelines for incident response"
+  ],
+  "metrics": {
+    "login_anomaly_precision_grace": 0.91,
+    "login_anomaly_recall_grace": 0.89,
+    "false_positive_rate": 0.03,
+    "mean_time_to_detect_minutes": 4.2,
+    "p95_detection_latency_minutes": 9.5
+  },
+  "runbooks": [
+    {
+      "title": "Anomalous login detected",
+      "steps": [
+        "Validate whether the login originates from a known device or corporate network",
+        "Check recent password resets, MFA changes, or role updates for the affected user",
+        "Review concurrent login attempts from different geographies or IP ranges",
+        "Correlate identity events with recent application or infrastructure changes",
+        "If risk score remains elevated, temporarily restrict access and notify security operations"
+      ]
+    },
+    {
+      "title": "Multiple failed authentication attempts",
+      "steps": [
+        "Confirm whether failures align with a misconfigured service account or automation",
+        "Inspect IP reputation and ASN history for the source addresses",
+        "Check for similar failures across other user accounts or tenants",
+        "Apply rate limiting or temporary lockout if attack patterns are detected",
+        "Escalate to incident response if coordinated behavior is observed"
+      ]
+    },
+    {
+      "title": "Authorization policy conflict",
+      "steps": [
+        "Identify overlapping role-based and attribute-based access policies",
+        "Review recent policy deployments or configuration changes",
+        "Simulate access decisions to determine unintended privilege grants or denials",
+        "Roll back conflicting policies if production access is impacted",
+        "Document resolution and update policy validation rules to prevent recurrence"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does VaultShield differentiate between benign access changes and malicious behavior?",
+      "a": "VaultShield evaluates identity events using temporal context, device familiarity, network reputation, and behavioral baselines, allowing expected changes to decay while highlighting sustained or correlated anomalies."
+    },
+    {
+      "q": "Does VaultShield replace existing IAM or SSO providers?",
+      "a": "No. VaultShield integrates with existing IAM and SSO systems to provide higher-level detection, correlation, and response guidance without replacing authoritative identity sources."
+    },
+    {
+      "q": "How are alerts prioritized for security teams?",
+      "a": "Alerts are scored based on potential impact, confidence, and blast radius, enabling security teams to focus on high-risk events while suppressing low-confidence noise."
+    }
+  ]
+}

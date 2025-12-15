@@ -1,0 +1,67 @@
+{
+  "product": "HelioCloud",
+  "slug": "heliocloud",
+  "tagline": "Cloud-native observability platform for metrics, logs, and distributed tracing at scale.",
+  "capabilities": [
+    "High-cardinality metrics ingestion with cost-aware aggregation",
+    "End-to-end distributed tracing across services and regions",
+    "Log correlation with metrics and traces for rapid root-cause analysis",
+    "Latency and error budget monitoring aligned with SLOs",
+    "Anomaly detection on service-level indicators (SLIs)",
+    "Change-aware alerting to reduce noise during deployments and scaling events"
+  ],
+  "metrics": {
+    "alert_precision_grace": 0.87,
+    "alert_recall_grace": 0.90,
+    "false_positive_rate": 0.05,
+    "mean_time_to_detect_minutes": 5.1,
+    "p95_detection_latency_minutes": 11.3,
+    "metric_ingest_latency_p95_seconds": 8.2
+  },
+  "runbooks": [
+    {
+      "title": "Latency spike detected",
+      "steps": [
+        "Confirm whether the spike coincides with a recent deployment or configuration change",
+        "Compare p50, p95, and p99 latency to identify tail amplification",
+        "Inspect upstream and downstream service dependencies for correlated slowdowns",
+        "Review recent autoscaling events and resource saturation indicators",
+        "If latency persists beyond 15 minutes, escalate to service owners"
+      ]
+    },
+    {
+      "title": "Error rate increase",
+      "steps": [
+        "Validate error classification (4xx vs 5xx) to scope ownership",
+        "Correlate error spikes with recent releases or traffic pattern changes",
+        "Inspect trace samples for common failure paths",
+        "Check dependency health for timeouts or throttling",
+        "Apply temporary alert dampening if caused by expected changes"
+      ]
+    },
+    {
+      "title": "Metrics ingestion delay",
+      "steps": [
+        "Confirm backlog growth in ingestion pipelines",
+        "Check regional collectors for CPU or memory saturation",
+        "Inspect network latency between agents and collectors",
+        "Validate retention and aggregation configuration for high-cardinality metrics",
+        "Escalate if ingest delay impacts SLO-based alerting"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does HelioCloud reduce alert fatigue?",
+      "a": "HelioCloud incorporates temporal context, deployment awareness, and grace-period scoring to suppress short-lived noise while preserving visibility into sustained or correlated issues."
+    },
+    {
+      "q": "Does HelioCloud replace existing metrics or logging systems?",
+      "a": "No. HelioCloud integrates with existing telemetry sources and collectors, acting as a unifying analysis and correlation layer rather than a replacement."
+    },
+    {
+      "q": "How does HelioCloud handle high-cardinality data?",
+      "a": "HelioCloud applies adaptive aggregation, selective indexing, and cost-aware retention policies to balance query performance with observability fidelity."
+    }
+  ]
+}

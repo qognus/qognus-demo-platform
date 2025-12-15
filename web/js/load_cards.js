@@ -3,6 +3,8 @@
  * Dynamically loads HTML components for the Qognus Demo Platform.
  */
 
+import { initAssistantCard } from "./agent_router.js";
+
 export async function loadAllCards() {
   const container = document.getElementById("cardContainer");
   
@@ -34,6 +36,14 @@ export async function loadAllCards() {
       }
 
       // 2. Initialize Component Logic
+      
+      // --- Assistant (New) ---
+      if (name === 'assistant') {
+        // Initialize the agent router for this card
+        // We allow a brief moment for DOM painting, though usually not strictly required
+        await initAssistantCard(); 
+      }
+
       // --- GridSense ---
       if (name === 'gridsense' && window.initGridSense) {
         setTimeout(() => window.initGridSense(), 50);
@@ -44,7 +54,7 @@ export async function loadAllCards() {
         setTimeout(() => window.initHelioCloud(), 50);
       }
       
-      // --- VaultShield (NEW) ---
+      // --- VaultShield ---
       if (name === 'vaultshield' && window.initVaultShield) {
         setTimeout(() => window.initVaultShield(), 50);
       }
@@ -54,8 +64,8 @@ export async function loadAllCards() {
     }
   }
 
-  // Add 'vaultshield' to this list to load it
-  const components = ["gridsense", "heliocloud", "vaultshield"];
+  // We load the assistant first so it appears at the top of the feed
+  const components = ["assistant", "gridsense", "heliocloud", "vaultshield"];
   
   for (const c of components) {
     await loadCard(c);

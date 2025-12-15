@@ -1,0 +1,67 @@
+{
+  "product": "LineaOps",
+  "slug": "lineaops",
+  "tagline": "Operational monitoring and anomaly detection for industrial automation, robotics, and manufacturing lines.",
+  "capabilities": [
+    "Real-time monitoring of robot cells, conveyors, and PLC-controlled assets",
+    "Detection of cycle-time drift and throughput degradation",
+    "Correlation of telemetry across mechanical, electrical, and control signals",
+    "Early warning for equipment stress, misalignment, and control instability",
+    "Change-aware alerting during firmware updates and process reconfiguration",
+    "Fleet-wide comparison across production lines and facilities"
+  ],
+  "metrics": {
+    "anomaly_precision_grace": 0.86,
+    "anomaly_recall_grace": 0.88,
+    "false_positive_rate": 0.06,
+    "mean_time_to_detect_minutes": 7.4,
+    "p95_detection_latency_minutes": 14.8,
+    "unplanned_downtime_reduction_percent": 18.5
+  },
+  "runbooks": [
+    {
+      "title": "Cycle time degradation detected",
+      "steps": [
+        "Compare current cycle times against historical baselines for the same product SKU",
+        "Inspect upstream and downstream stations for accumulated backpressure",
+        "Review recent firmware or parameter changes on affected robot controllers",
+        "Check mechanical wear indicators and lubrication schedules",
+        "Escalate to maintenance if degradation persists beyond acceptable thresholds"
+      ]
+    },
+    {
+      "title": "PLC communication instability",
+      "steps": [
+        "Verify network health between PLCs and supervisory systems",
+        "Check for recent changes to PLC logic or communication parameters",
+        "Inspect error counters and retransmission rates",
+        "Validate grounding and electromagnetic interference conditions",
+        "Switch to degraded operation mode if instability affects safety"
+      ]
+    },
+    {
+      "title": "Canary deployment failure",
+      "steps": [
+        "Identify affected robot cells and isolate from the main production line",
+        "Review canary performance metrics against control groups",
+        "Check compatibility between new firmware and existing PLC logic",
+        "Roll back firmware if safety or throughput is impacted",
+        "Document findings and update deployment validation criteria"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does LineaOps handle safety-critical systems?",
+      "a": "LineaOps operates in an observational role only and does not issue control commands. Safety systems and interlocks remain authoritative within existing industrial control frameworks."
+    },
+    {
+      "q": "Can LineaOps integrate with legacy PLCs?",
+      "a": "Yes. LineaOps supports common industrial protocols and can ingest telemetry from legacy PLCs through gateways without requiring intrusive changes."
+    },
+    {
+      "q": "How does LineaOps distinguish process drift from normal variability?",
+      "a": "LineaOps models historical process variability and applies temporal context, allowing expected fluctuations to decay while highlighting sustained or correlated deviations."
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+<!-- web/components/assistant_card.html -->
+<section
+  class="mt-10 max-w-5xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl"
+  data-assistant-card
+>
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-6 mb-6">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        ApexGrid Incident Assistant
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-2xl">
+        Local-first incident copilot that can pull context from all product cards (GridSense, VaultShield, LineaOps, HelioCloud).
+        Runs on your machine via Ollama, with an optional browser-only mode later.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <!-- Mode toggle -->
+      <div class="inline-flex rounded-2xl border border-slate-700 bg-slate-950/40 p-1">
+        <button
+          type="button"
+          class="px-3 py-2 text-xs font-semibold rounded-xl bg-sky-500/90 text-slate-950"
+          data-ai-mode="ollama"
+          data-ai-mode-active
+          title="Uses your local Ollama instance (fastest for dev)"
+        >
+          Local (Ollama)
+        </button>
+        <button
+          type="button"
+          class="px-3 py-2 text-xs font-semibold rounded-xl text-slate-200 hover:bg-slate-800/60"
+          data-ai-mode="browser"
+          title="Browser-only llama.cpp mode (optional later)"
+          disabled
+        >
+          Local (Browser)
+        </button>
+      </div>
+
+      <!-- Status pill -->
+      <div
+        class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950/40 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
+        aria-live="polite"
+      >
+        <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400" data-ai-status-dot></span>
+        <span data-ai-status-text>Ready (local)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="grid gap-6 lg:grid-cols-3">
+    <!-- Left: Suggested prompts + Sources -->
+    <aside class="lg:col-span-1 space-y-4">
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <h4 class="text-sm font-semibold text-slate-100">Try asking</h4>
+        <div class="mt-3 flex flex-col gap-2">
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Summarize current platform risks across GridSense + VaultShield.
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Draft a customer update for a Sev2 GridSense telemetry drop in us-west-2.
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            What runbook steps should we follow for VaultShield anomalous login alerts?
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Produce a triage checklist that an SRE can execute in 15 minutes.
+          </button>
+        </div>
+        <p class="mt-3 text-[0.7rem] text-slate-500">
+          Tip: This assistant can use a local knowledge manifest (facts/runbooks) from each product card as sources.
+        </p>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <h4 class="text-sm font-semibold text-slate-100">Sources used</h4>
+        <p class="mt-2 text-xs text-slate-400">
+          When the assistant cites local product knowledge, it will list snippets here.
+        </p>
+
+        <div class="mt-3 space-y-2" data-ai-sources>
+          <div class="text-xs text-slate-500 italic">
+            No sources yet.
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right: Chat -->
+    <div class="lg:col-span-2 flex flex-col">
+      <div
+        class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 h-[420px] overflow-y-auto"
+        data-ai-transcript
+        aria-label="Chat transcript"
+      >
+        <!-- System greeting -->
+        <div class="flex gap-3 mb-4">
+          <div class="h-9 w-9 rounded-2xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+            <span class="text-sky-300 text-xs font-bold">AG</span>
+          </div>
+          <div class="flex-1">
+            <div class="text-xs text-slate-400 mb-1">Assistant</div>
+            <div class="text-sm text-slate-100 leading-relaxed">
+              Ask me about incidents, triage, and runbooks across the ApexGrid product suite.
+              I can operate fully locally (Ollama) and will surface any local “facts” sources I used.
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages will append here -->
+        <div data-ai-messages></div>
+      </div>
+
+      <!-- Input -->
+      <div class="mt-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+        <div class="flex gap-3">
+          <input
+            type="text"
+            class="flex-1 rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 text-slate-200 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-sky-500/40"
+            placeholder="Ask a question… (e.g., “Draft a Sev2 customer update for telemetry drop.”)"
+            data-ai-input
+          />
+          <button
+            type="button"
+            class="rounded-xl px-4 py-3 bg-sky-500/90 text-slate-950 font-semibold hover:bg-sky-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            data-ai-send
+          >
+            Send
+          </button>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <div class="text-[0.7rem] text-slate-500">
+            Local mode uses your machine. No data is sent to third parties unless you later enable cloud mode.
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label class="text-[0.7rem] text-slate-400 flex items-center gap-2">
+              <input type="checkbox" class="accent-sky-500" data-ai-include-sources checked />
+              Include local sources
+            </label>
+
+            <button
+              type="button"
+              class="text-[0.7rem] text-slate-300 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+              data-ai-clear
+              title="Clear transcript"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer hint -->
+      <p class="mt-3 text-xs text-slate-500">
+        <span class="text-slate-400">Next:</span> wire in <code class="text-slate-300">web/assets/manifest.json</code> +
+        <code class="text-slate-300">*_facts.json</code> so the assistant can cite runbooks/metrics from each product.
+      </p>
+    </div>
+  </div>
+</section>

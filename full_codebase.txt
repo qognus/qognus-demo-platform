@@ -3079,6 +3079,32 @@ This taxonomy is the backbone of the Qognus Demo Platform’s NLP and embeddings
 
 
 ==================================================
+FILE PATH: models\vaultshield_markov.json
+==================================================
+
+{
+  "START": {
+    "login_attempt": 1.0
+  },
+  "login_attempt": {
+    "mfa_challenge": 1.0
+  },
+  "mfa_challenge": {
+    "mfa_response": 1.0
+  },
+  "mfa_response": {
+    "token_issued": 1.0
+  },
+  "token_issued": {
+    "api_access": 1.0
+  },
+  "api_access": {
+    "api_access": 0.6698280802292264,
+    "END": 0.33017191977077365
+  }
+}
+
+==================================================
 FILE PATH: models\cluster\cluster_umap_hdbscan.py
 ==================================================
 
@@ -4344,6 +4370,416 @@ if __name__ == "__main__":
     main()
 
 ==================================================
+FILE PATH: models\vaultshield_analytics\export_vaultshield.py
+==================================================
+
+"""
+export_vaultshield.py
+---------------------
+Reads 'session_scores.parquet' and 'vaultshield_auth_logs.jsonl'.
+Exports 'web/data/vaultshield_artifacts.js'.
+"""
+import json
+import pandas as pd
+import pathlib
+
+DATA_DIR = pathlib.Path("data")
+SCORES_FILE = DATA_DIR / "processed" / "session_scores.parquet"
+RAW_LOGS = DATA_DIR / "raw" / "vaultshield_auth_logs.jsonl"
+OUT_JS = pathlib.Path("web/data/vaultshield_artifacts.js")
+
+def main():
+    if not SCORES_FILE.exists():
+        print("Scores file not found. Run score_sequences.py first.")
+        return
+
+    print("Loading scores...")
+    df = pd.read_parquet(SCORES_FILE)
+    
+    # 1. Attack Counts
+    attack_counts = df[df["is_attack"] == True]["attack_type"].value_counts().to_dict()
+    
+    # 2. Top Anomaly
+    # Get the single highest scoring session
+    top_session_row = df.iloc[0] # Sorted descending in previous script
+    top_sid = top_session_row["session_id"]
+    
+    # We need the ACTUAL events for this session to draw the timeline
+    # Only scanning raw logs for this specific ID to be efficient
+    print(f"Fetching events for top anomaly: {top_sid}")
+    events = []
+    
+    # Scan raw logs (inefficient for huge files, fine for demo)
+    # A better way in prod is to save events in the parquet, but parquet hates lists of strings
+    with RAW_LOGS.open("r", encoding="utf-8") as f:
+        for line in f:
+            if top_sid in line:
+                rec = json.loads(line)
+                if rec["session_id"] == top_sid:
+                    events.append(rec)
+    
+    # Sort by time and extract types
+    events.sort(key=lambda x: x["timestamp"])
+    event_sequence = [e["event_type"] for e in events]
+
+    top_anomaly_data = {
+        "session_id": top_sid,
+        "user_id": top_session_row["user_id"],
+        "anomaly_score": float(top_session_row["anomaly_score"]),
+        "attack_type": top_session_row["attack_type"],
+        "explanation": top_session_row["explanation"],
+        "worst_prob": float(top_session_row["worst_transition_prob"]),
+        "events": event_sequence
+    }
+
+    # 3. Payload
+    payload = {
+        "total_sessions": len(df),
+        "attack_counts": attack_counts,
+        "top_anomaly": top_anomaly_data
+    }
+    
+    # 4. Write JS
+    print(f"Exporting to {OUT_JS}...")
+    OUT_JS.parent.mkdir(parents=True, exist_ok=True)
+    js_content = f"window.VAULTSHIELD_ARTIFACTS = {json.dumps(payload, indent=2)};"
+    
+    with OUT_JS.open("w", encoding="utf-8") as f:
+        f.write(js_content)
+        
+    print("Done.")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: models\vaultshield_analytics\score_sequences.py
+==================================================
+
+"""
+score_sequences.py
+Qognus Demo Platform — ApexGrid / VaultShield
+---------------------------------------------
+Scores authentication sessions using the trained Markov Chain model.
+
+Logic:
+1. Reconstructs the full sequence for every session (Normal + Attack).
+2. Calculates the Anomaly Score: -Sum(log(P_transition)).
+   - High Score = Highly Anomalous (Low Probability).
+3. Identifies the "Root Cause" transition (the step with the lowest probability).
+4. Saves the results for the dashboard.
+"""
+
+import json
+import pathlib
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_LOGS = DATA_DIR / "raw" / "vaultshield_auth_logs.jsonl"
+PROCESSED_DIR = DATA_DIR / "processed"
+
+MATRIX_FILE = PROCESSED_DIR / "markov_transition_matrix.npy"
+STATE_MAP_FILE = PROCESSED_DIR / "markov_state_map.json"
+
+OUT_SCORES = PROCESSED_DIR / "session_scores.parquet"
+
+START_TOKEN = "SESSION_START"
+END_TOKEN = "SESSION_END"
+
+# Small epsilon to prevent log(0)
+EPSILON = 1e-9
+
+# ------------------------------------------------------------
+# SCORING ENGINE
+# ------------------------------------------------------------
+
+def load_model():
+    """Load the trained transition matrix and state map."""
+    if not MATRIX_FILE.exists() or not STATE_MAP_FILE.exists():
+        raise FileNotFoundError("Model artifacts not found. Run train_markov_chain.py first.")
+    
+    matrix = np.load(MATRIX_FILE)
+    with STATE_MAP_FILE.open("r", encoding="utf-8") as f:
+        state_map = json.load(f)
+        
+    return matrix, state_map
+
+def score_session(events: list, matrix: np.ndarray, state_map: dict):
+    """
+    Calculates the anomaly score for a single session sequence.
+    Returns: (total_score, max_anomaly_transition, worst_prob)
+    """
+    # 1. Pad sequence with tokens
+    full_sequence = [START_TOKEN] + events + [END_TOKEN]
+    
+    total_nll = 0.0  # Negative Log Likelihood
+    min_prob = 1.0
+    worst_transition = None
+    
+    # 2. Walk through transitions
+    for i in range(len(full_sequence) - 1):
+        curr_state = full_sequence[i]
+        next_state = full_sequence[i+1]
+        
+        # Handle unknown states (if new event types appear in future data)
+        if curr_state not in state_map or next_state not in state_map:
+            prob = EPSILON
+        else:
+            c_idx = state_map[curr_state]
+            n_idx = state_map[next_state]
+            prob = matrix[c_idx, n_idx]
+        
+        # Clamp prob to avoid log(0) error
+        prob = max(prob, EPSILON)
+        
+        # 3. Accumulate Score (-log(p))
+        # Lower probability = Higher Anomaly Score
+        nll = -np.log(prob)
+        total_nll += nll
+        
+        # 4. Track the "Why" (Lowest probability step)
+        if prob < min_prob:
+            min_prob = prob
+            worst_transition = f"{curr_state} → {next_state}"
+
+    # Normalize score by length to prevent long sessions from always looking bad
+    # (Optional: depends on if length itself is considered anomalous)
+    normalized_score = total_nll / len(full_sequence)
+    
+    return normalized_score, worst_transition, min_prob
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("==================================================")
+    print(" VaultShield — Score Sessions (Anomaly Detection)")
+    print("==================================================")
+
+    # 1. Load Data & Model
+    print("Loading model and logs...")
+    matrix, state_map = load_model()
+    
+    logs_df = pd.read_json(RAW_LOGS, lines=True)
+    logs_df = logs_df.sort_values(["session_id", "timestamp"])
+    
+    print(f"Scoring {logs_df['session_id'].nunique()} unique sessions...")
+
+    results = []
+
+    # 2. Iterate over every session
+    # GroupBy is efficient enough for ~10k sessions
+    for session_id, group in tqdm(logs_df.groupby("session_id"), desc="Scoring"):
+        events = group["event_type"].tolist()
+        
+        # Metadata from the first event in the session
+        first_row = group.iloc[0]
+        user_id = first_row["user_id"]
+        is_attack = bool(first_row["is_attack"])
+        attack_type = first_row.get("attack_type")
+        ip_address = first_row["ip_address"]
+        
+        # 3. Calculate Score
+        score, explanation, worst_prob = score_session(events, matrix, state_map)
+        
+        results.append({
+            "session_id": session_id,
+            "user_id": user_id,
+            "ip_address": ip_address,
+            "timestamp": first_row["timestamp"], # Session start time
+            "is_attack": is_attack,
+            "attack_type": str(attack_type) if attack_type else "Normal",
+            "anomaly_score": float(round(score, 4)),
+            "explanation": explanation,
+            "worst_transition_prob": float(round(worst_prob, 6)),
+            "event_count": len(events)
+        })
+
+    # 4. Save Results
+    results_df = pd.DataFrame(results)
+    results_df = results_df.sort_values("anomaly_score", ascending=False)
+    
+    print("\n--- Top 5 Anomalous Sessions Found ---")
+    print(results_df[["user_id", "attack_type", "anomaly_score", "explanation"]].head(5).to_string(index=False))
+    
+    print(f"\nSaving scores to {OUT_SCORES}...")
+    results_df.to_parquet(OUT_SCORES, index=False)
+    
+    # 5. Quick Accuracy Check (ROC-AUC proxy)
+    # How well did we separate attacks (High Score) from normal (Low Score)?
+    avg_attack_score = results_df[results_df["is_attack"] == True]["anomaly_score"].mean()
+    avg_normal_score = results_df[results_df["is_attack"] == False]["anomaly_score"].mean()
+    
+    print(f"\nAvg Score (Attack): {avg_attack_score:.4f}")
+    print(f"Avg Score (Normal): {avg_normal_score:.4f}")
+    
+    if avg_attack_score > avg_normal_score:
+        print("SUCCESS: Attack sessions have higher anomaly scores.")
+    else:
+        print("WARNING: Model may need tuning (Attack scores are low).")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: models\vaultshield_analytics\train_markov_chain.py
+==================================================
+
+"""
+train_markov_chain.py
+Qognus Demo Platform — ApexGrid / VaultShield
+---------------------------------------------
+Trains a First-Order Markov Chain on "Normal" authentication sequences.
+
+Steps:
+1. Load auth logs from JSONL.
+2. Filter OUT any sessions marked as 'is_attack=True' (Ground Truth).
+3. Group events by session_id and time.
+4. Compute transition probabilities: P(Event_B | Event_A).
+5. Save the Transition Matrix and State Map for the scoring engine.
+"""
+
+import json
+import pathlib
+import numpy as np
+import pandas as pd
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_LOGS = DATA_DIR / "raw" / "vaultshield_auth_logs.jsonl"
+
+PROCESSED_DIR = DATA_DIR / "processed"
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+OUT_MATRIX = PROCESSED_DIR / "markov_transition_matrix.npy"
+OUT_STATE_MAP = PROCESSED_DIR / "markov_state_map.json"
+
+# We add a specialized "START" and "END" token to model the 
+# beginning and conclusion of sessions naturally.
+START_TOKEN = "SESSION_START"
+END_TOKEN = "SESSION_END"
+
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
+
+def load_data(path: pathlib.Path) -> pd.DataFrame:
+    """Load JSONL logs into a DataFrame."""
+    if not path.exists():
+        raise FileNotFoundError(f"Missing input file: {path}")
+    
+    records = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                records.append(json.loads(line))
+    
+    return pd.DataFrame(records)
+
+def build_transition_matrix(df_normal: pd.DataFrame):
+    """
+    Constructs the probability matrix from normal sessions.
+    Returns: (matrix_numpy, state_to_index_dict)
+    """
+    # 1. Identify all unique event types
+    unique_events = sorted(df_normal["event_type"].unique().tolist())
+    
+    # 2. Add special tokens to the state space
+    states = [START_TOKEN] + unique_events + [END_TOKEN]
+    state_to_idx = {s: i for i, s in enumerate(states)}
+    n_states = len(states)
+    
+    # Initialize count matrix
+    counts = np.zeros((n_states, n_states), dtype=np.float64)
+
+    # 3. Process each session to count transitions
+    # Sort by session and time to ensure correct order
+    df_sorted = df_normal.sort_values(["session_id", "timestamp"])
+    
+    print(f"Aggregating transitions from {df_sorted['session_id'].nunique()} sessions...")
+
+    for _, group in df_sorted.groupby("session_id"):
+        events = group["event_type"].tolist()
+        
+        # Transition: START -> First Event
+        first_evt_idx = state_to_idx[events[0]]
+        start_idx = state_to_idx[START_TOKEN]
+        counts[start_idx, first_evt_idx] += 1
+        
+        # Transitions: Event[i] -> Event[i+1]
+        for i in range(len(events) - 1):
+            curr_evt = events[i]
+            next_evt = events[i+1]
+            
+            c_idx = state_to_idx[curr_evt]
+            n_idx = state_to_idx[next_evt]
+            
+            counts[c_idx, n_idx] += 1
+            
+        # Transition: Last Event -> END
+        last_evt_idx = state_to_idx[events[-1]]
+        end_idx = state_to_idx[END_TOKEN]
+        counts[last_evt_idx, end_idx] += 1
+
+    # 4. Normalize rows to get Probabilities
+    # Add Laplace smoothing (epsilon) to avoid 0.0 probabilities for rare valid transitions
+    epsilon = 1e-5
+    counts += epsilon
+    
+    # Divide each row by its sum
+    row_sums = counts.sum(axis=1, keepdims=True)
+    probs = counts / row_sums
+    
+    return probs, state_to_idx
+
+# ------------------------------------------------------------
+# MAIN
+# ------------------------------------------------------------
+
+def main():
+    print("==================================================")
+    print(" VaultShield — Train Markov Chain Model")
+    print("==================================================")
+    
+    # 1. Load Data
+    print("Loading logs...")
+    df = load_data(RAW_LOGS)
+    print(f"Total events: {len(df)}")
+    
+    # 2. Filter for NORMAL traffic only (Ground Truth)
+    # We want the model to learn what "Good" looks like.
+    df_normal = df[df["is_attack"] == False].copy()
+    print(f"Training on {len(df_normal)} normal events...")
+    
+    # 3. Build Matrix
+    print("Computing transition probabilities...")
+    transition_matrix, state_map = build_transition_matrix(df_normal)
+    
+    # 4. Save Artifacts
+    print(f"Saving matrix shape: {transition_matrix.shape}")
+    np.save(OUT_MATRIX, transition_matrix)
+    
+    with OUT_STATE_MAP.open("w", encoding="utf-8") as f:
+        json.dump(state_map, f, indent=2)
+        
+    print(f" -> Matrix saved to: {OUT_MATRIX}")
+    print(f" -> State map saved to: {OUT_STATE_MAP}")
+    print("\nModel trained. Ready for scoring.")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
 FILE PATH: notebooks\01_generate_synthetic.ipynb
 ==================================================
 
@@ -4372,6 +4808,640 @@ FILE PATH: notebooks\05_visualization_prototyping.ipynb
 ==================================================
 
 
+
+==================================================
+FILE PATH: pipelines\vaultshield\evaluate_detection.py
+==================================================
+
+import pandas as pd
+import json
+import pathlib
+from sklearn.metrics import average_precision_score, roc_auc_score
+
+SCORES_PATH = pathlib.Path("data/processed/vaultshield_session_scores.parquet")
+OUT_METRICS = pathlib.Path("data/metrics/vaultshield_metrics.json")
+OUT_METRICS.parent.mkdir(parents=True, exist_ok=True)
+
+def main():
+    df = pd.read_parquet(SCORES_PATH)
+    
+    y_true = df['is_attack'].astype(int)
+    y_score = df['anomaly_score']
+    
+    # 1. PR-AUC (Average Precision)
+    pr_auc = average_precision_score(y_true, y_score)
+    
+    # 2. ROC-AUC
+    roc_auc = roc_auc_score(y_true, y_score)
+    
+    # 3. Precision @ Top 100
+    top_100 = df.nlargest(100, 'anomaly_score')
+    precision_at_k = top_100['is_attack'].mean()
+    
+    metrics = {
+        "pr_auc": round(pr_auc, 4),
+        "roc_auc": round(roc_auc, 4),
+        "precision_at_100": round(precision_at_k, 4),
+        "total_sessions": len(df),
+        "total_attacks": int(y_true.sum())
+    }
+    
+    print("Metrics:", metrics)
+    
+    with open(OUT_METRICS, "w") as f:
+        json.dump(metrics, f, indent=2)
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: pipelines\vaultshield\export_web_artifacts.py
+==================================================
+
+"""
+pipelines/vaultshield/export_web_artifacts.py
+---------------------------------------------
+Reads the NEW "Infra-Safe" session scores and metrics.
+Exports to web/data/vaultshield_artifacts.js for the RICH UI.
+"""
+import json
+import pandas as pd
+import pathlib
+
+# Input Paths (From your new structure)
+SCORES_PATH = pathlib.Path("data/processed/vaultshield_session_scores.parquet")
+METRICS_PATH = pathlib.Path("data/metrics/vaultshield_metrics.json")
+
+# Output Path
+OUT_JS = pathlib.Path("web/data/vaultshield_artifacts.js")
+OUT_JS.parent.mkdir(parents=True, exist_ok=True)
+
+def main():
+    if not SCORES_PATH.exists():
+        print("Scores file not found. Run score_sessions.py first.")
+        return
+
+    # 1. Load Data
+    df = pd.read_parquet(SCORES_PATH)
+    
+    with open(METRICS_PATH) as f:
+        metrics_data = json.load(f)
+
+    # 2. Aggregations for "Threat Monitor" Tab
+    attack_counts = df[df["is_attack"] == True]["attack_type"].value_counts().to_dict()
+    
+    # 3. Top Anomaly for "Forensics" Tab
+    # Get the single highest scoring session to feature
+    top_row = df.nlargest(1, "anomaly_score").iloc[0]
+    
+    # Parse the risk steps string back to list
+    risk_steps = json.loads(top_row["risk_steps"])
+    
+    # Find the "Worst Transition" for the explanation
+    worst_step = max(risk_steps, key=lambda x: x["risk"])
+    explanation = f"{worst_step['from']} → {worst_step['to']}"
+    
+    # Reconstruct event list for the UI timeline
+    # (The UI expects a list of event names)
+    events = [step["from"] for step in risk_steps]
+    events.append(risk_steps[-1]["to"])
+
+    top_anomaly_data = {
+        "session_id": top_row["session_id"],
+        "user_id": top_row["user_id"],
+        "anomaly_score": float(top_row["anomaly_score"]),
+        "attack_type": top_row["attack_type"],
+        "explanation": explanation,
+        "worst_prob": float(2.718**(-worst_step["risk"])), # Convert NLL back to prob for display
+        "events": events
+    }
+
+    # 4. Construct Final Payload
+    payload = {
+        "total_sessions": len(df),
+        "attack_counts": attack_counts,
+        "metrics": metrics_data, # Pass PR-AUC etc.
+        "top_anomaly": top_anomaly_data
+    }
+    
+    # 5. Write JS File
+    print(f"Exporting merged artifacts to {OUT_JS}...")
+    js_content = f"window.VAULTSHIELD_ARTIFACTS = {json.dumps(payload, indent=2)};"
+    
+    with OUT_JS.open("w", encoding="utf-8") as f:
+        f.write(js_content)
+        
+    print("Done.")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: pipelines\vaultshield\score_sessions.py
+==================================================
+
+import json
+import math
+import pathlib
+import pandas as pd
+from tqdm import tqdm
+
+DATA_PATH = pathlib.Path("data/raw/vaultshield_auth_logs.jsonl")
+MODEL_PATH = pathlib.Path("models/vaultshield_markov.json")
+OUTPUT_PATH = pathlib.Path("data/processed/vaultshield_session_scores.parquet")
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+EPSILON = 1e-6 # Penalty for unseen transitions
+
+def main():
+    with open(MODEL_PATH) as f:
+        model = json.load(f)
+        
+    df = pd.read_json(DATA_PATH, lines=True)
+    
+    results = []
+    
+    # Score every session (Normal + Attack)
+    grouped = df.sort_values('timestamp_utc').groupby('session_id')
+    
+    for sid, group in tqdm(grouped):
+        events = group['event_type'].tolist()
+        
+        # Metadata for result
+        meta = group.iloc[0]
+        
+        session_risk = 0.0
+        risk_steps = []
+        
+        # START transition
+        curr = 'START'
+        
+        for next_evt in events:
+            # Probability P(next | curr)
+            prob = model.get(curr, {}).get(next_evt, EPSILON)
+            
+            # Risk = -log(P)
+            step_risk = -math.log(prob)
+            session_risk += step_risk
+            
+            risk_steps.append({
+                "from": curr,
+                "to": next_evt,
+                "risk": round(step_risk, 2)
+            })
+            
+            curr = next_evt
+            
+        # Normalize by length? Or raw sum? 
+        # Raw sum is better for "longer sequence = more surface area"
+        
+        results.append({
+            "session_id": sid,
+            "user_id": meta['user_id'],
+            "ip": meta['ip'],
+            "is_attack": meta['is_attack'],
+            "attack_type": meta['attack_type'],
+            "anomaly_score": session_risk,
+            "risk_steps": json.dumps(risk_steps), # Store as JSON string for Parquet
+            "event_count": len(events)
+        })
+        
+    res_df = pd.DataFrame(results)
+    res_df.to_parquet(OUTPUT_PATH)
+    print(f"Scored {len(res_df)} sessions.")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: pipelines\vaultshield\train_markov.py
+==================================================
+
+import json
+import pathlib
+import pandas as pd
+import numpy as np
+from collections import defaultdict
+
+DATA_PATH = pathlib.Path("data/raw/vaultshield_auth_logs.jsonl")
+MODEL_DIR = pathlib.Path("models")
+MODEL_DIR.mkdir(exist_ok=True)
+
+def main():
+    print("Training Markov Baseline...")
+    df = pd.read_json(DATA_PATH, lines=True)
+    
+    # Filter ground truth: Only train on normal data
+    df_normal = df[df['is_attack'] == False].copy()
+    
+    # Group by session
+    sessions = df_normal.sort_values('timestamp_utc').groupby('session_id')['event_type'].apply(list)
+    
+    # Build Transitions
+    transitions = defaultdict(lambda: defaultdict(int))
+    
+    for seq in sessions:
+        # Add START token
+        transitions['START'][seq[0]] += 1
+        
+        for i in range(len(seq) - 1):
+            curr_e, next_e = seq[i], seq[i+1]
+            transitions[curr_e][next_e] += 1
+            
+        # Add END token
+        transitions[seq[-1]]['END'] += 1
+        
+    # Convert to Probabilities (log probs for stability)
+    markov_model = {}
+    
+    for src, targets in transitions.items():
+        total = sum(targets.values())
+        markov_model[src] = {tgt: count/total for tgt, count in targets.items()}
+        
+    # Save
+    with open(MODEL_DIR / "vaultshield_markov.json", "w") as f:
+        json.dump(markov_model, f, indent=2)
+        
+    print("Model saved.")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
+FILE PATH: synthetic\generate_auth_logs.py
+==================================================
+
+"""
+generate_auth_logs.py
+Qognus Demo Platform — ApexGrid / VaultShield
+---------------------------------------------
+Generates synthetic authentication logs for security analytics.
+
+Features:
+- Generates "Normal" sessions (Login -> MFA -> App Access -> Logout)
+- Injects specific "Attack" scenarios:
+  1. Brute Force (High volume failures for one user)
+  2. Password Spray (Low volume failures across many users)
+  3. Impossible Travel (logins from physically distant regions in short time)
+  4. Privilege Escalation (User repeatedly trying to access admin areas)
+  
+Output: data/raw/vaultshield_auth_logs.jsonl
+"""
+
+import json
+import random
+import datetime
+import pathlib
+import uuid
+from typing import List, Dict
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+DATA_DIR = pathlib.Path("data")
+RAW_DIR = DATA_DIR / "raw"
+RAW_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_FILE = RAW_DIR / "vaultshield_auth_logs.jsonl"
+
+# Simulation settings
+DAYS_BACK = 7
+TOTAL_NORMAL_SESSIONS = 8000
+ATTACK_INJECTION_RATE = 0.05  # 5% of traffic is malicious
+
+# Domain Constants
+USERS = [f"user_{i:03d}" for i in range(1, 201)]  # user_001 to user_200
+ADMINS = [f"admin_{i:02d}" for i in range(1, 11)] # admin_01 to admin_10
+ALL_ACCOUNTS = USERS + ADMINS
+
+REGIONS = ["us-east-1", "us-west-2", "eu-central-1", "ap-southeast-1"]
+
+# IP Address Pools (mocking subnets)
+OFFICE_IPS = [f"10.50.{i}.{j}" for i in range(1, 5) for j in range(1, 50)]
+VPN_IPS = [f"172.16.{i}.{j}" for i in range(10, 20) for j in range(1, 100)]
+MALICIOUS_IPS = [f"192.168.666.{i}" for i in range(1, 50)]  # Obviously "bad" for demo clarity
+
+# Event Taxonomy
+EVENTS = [
+    "LOGIN_PROMPT", "LOGIN_SUCCESS", "LOGIN_FAIL",
+    "MFA_PROMPT", "MFA_SUCCESS", "MFA_FAIL",
+    "APP_ACCESS", "DASHBOARD_VIEW", "REPORT_GEN",
+    "ADMIN_PANEL_ACCESS", "API_KEY_GEN", "SUDO_ATTEMPT",
+    "LOGOUT"
+]
+
+# ------------------------------------------------------------
+# GENERATORS
+# ------------------------------------------------------------
+
+def get_random_time(start_time: datetime.datetime, end_time: datetime.datetime) -> datetime.datetime:
+    """Returns a random datetime between start and end."""
+    delta = end_time - start_time
+    random_second = random.randint(0, int(delta.total_seconds()))
+    return start_time + datetime.timedelta(seconds=random_second)
+
+def generate_normal_session(start_time: datetime.datetime) -> List[Dict]:
+    """
+    Creates a standard, happy-path user session.
+    Flow: Login -> MFA -> App Access -> (Work) -> Logout
+    """
+    user = random.choice(ALL_ACCOUNTS)
+    ip = random.choice(OFFICE_IPS + VPN_IPS)
+    region = random.choice(REGIONS) # Usually users stick to one, but random for base noise
+    session_id = str(uuid.uuid4())
+    
+    logs = []
+    current_time = start_time
+
+    # 1. Login
+    logs.append({
+        "timestamp": current_time.isoformat(),
+        "user_id": user,
+        "session_id": session_id,
+        "ip_address": ip,
+        "event_type": "LOGIN_PROMPT",
+        "region": region,
+        "is_attack": False,
+        "attack_type": None
+    })
+    
+    current_time += datetime.timedelta(seconds=random.randint(1, 5))
+    logs.append({
+        "timestamp": current_time.isoformat(),
+        "user_id": user,
+        "session_id": session_id,
+        "ip_address": ip,
+        "event_type": "LOGIN_SUCCESS",
+        "region": region,
+        "is_attack": False,
+        "attack_type": None
+    })
+
+    # 2. MFA
+    current_time += datetime.timedelta(seconds=random.randint(1, 2))
+    logs.append({
+        "timestamp": current_time.isoformat(),
+        "user_id": user,
+        "session_id": session_id,
+        "ip_address": ip,
+        "event_type": "MFA_PROMPT",
+        "region": region,
+        "is_attack": False,
+        "attack_type": None
+    })
+
+    current_time += datetime.timedelta(seconds=random.randint(5, 15))
+    logs.append({
+        "timestamp": current_time.isoformat(),
+        "user_id": user,
+        "session_id": session_id,
+        "ip_address": ip,
+        "event_type": "MFA_SUCCESS",
+        "region": region,
+        "is_attack": False,
+        "attack_type": None
+    })
+
+    # 3. Work (App Access loops)
+    for _ in range(random.randint(3, 8)):
+        current_time += datetime.timedelta(seconds=random.randint(20, 300))
+        action = random.choice(["APP_ACCESS", "DASHBOARD_VIEW", "REPORT_GEN"])
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": user,
+            "session_id": session_id,
+            "ip_address": ip,
+            "event_type": action,
+            "region": region,
+            "is_attack": False,
+            "attack_type": None
+        })
+
+    # 4. Logout
+    current_time += datetime.timedelta(seconds=random.randint(10, 60))
+    logs.append({
+        "timestamp": current_time.isoformat(),
+        "user_id": user,
+        "session_id": session_id,
+        "ip_address": ip,
+        "event_type": "LOGOUT",
+        "region": region,
+        "is_attack": False,
+        "attack_type": None
+    })
+
+    return logs
+
+# ------------------------------------------------------------
+# ATTACK SCENARIOS
+# ------------------------------------------------------------
+
+def inject_brute_force(start_time: datetime.datetime) -> List[Dict]:
+    """
+    Scenario: Single IP smashing a single account with failures.
+    """
+    target_user = random.choice(USERS)
+    attacker_ip = random.choice(MALICIOUS_IPS)
+    region = random.choice(REGIONS)
+    session_id = str(uuid.uuid4())
+    
+    logs = []
+    current_time = start_time
+
+    # 20-50 failed attempts rapid fire
+    for _ in range(random.randint(20, 50)):
+        current_time += datetime.timedelta(seconds=random.randint(0, 2))
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": target_user,
+            "session_id": session_id,
+            "ip_address": attacker_ip,
+            "event_type": "LOGIN_FAIL",
+            "region": region,
+            "is_attack": True,
+            "attack_type": "BruteForce"
+        })
+    
+    return logs
+
+def inject_password_spray(start_time: datetime.datetime) -> List[Dict]:
+    """
+    Scenario: Single IP trying ONE password against MANY users.
+    """
+    attacker_ip = random.choice(MALICIOUS_IPS)
+    region = random.choice(REGIONS)
+    
+    logs = []
+    current_time = start_time
+    
+    # Try 30 different users
+    targets = random.sample(USERS, 30)
+    
+    for user in targets:
+        session_id = str(uuid.uuid4()) # Each attempt is a "session" technically
+        current_time += datetime.timedelta(seconds=random.randint(10, 30)) # Slow-ish
+        
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": user,
+            "session_id": session_id,
+            "ip_address": attacker_ip,
+            "event_type": "LOGIN_FAIL",
+            "region": region,
+            "is_attack": True,
+            "attack_type": "PasswordSpray"
+        })
+
+    return logs
+
+def inject_impossible_travel(start_time: datetime.datetime) -> List[Dict]:
+    """
+    Scenario: User logs in from US-East, then 5 mins later from AP-Southeast.
+    """
+    user = random.choice(USERS)
+    session_id_1 = str(uuid.uuid4())
+    session_id_2 = str(uuid.uuid4())
+    
+    logs = []
+    
+    # Login 1 (US)
+    t1 = start_time
+    logs.append({
+        "timestamp": t1.isoformat(),
+        "user_id": user,
+        "session_id": session_id_1,
+        "ip_address": "10.50.1.100", # Office IP
+        "event_type": "LOGIN_SUCCESS",
+        "region": "us-east-1",
+        "is_attack": True,
+        "attack_type": "ImpossibleTravel"
+    })
+
+    # Login 2 (Asia) - only 15 mins later
+    t2 = t1 + datetime.timedelta(minutes=15)
+    logs.append({
+        "timestamp": t2.isoformat(),
+        "user_id": user,
+        "session_id": session_id_2,
+        "ip_address": "203.0.113.55", # External IP
+        "event_type": "LOGIN_SUCCESS",
+        "region": "ap-southeast-1",
+        "is_attack": True,
+        "attack_type": "ImpossibleTravel"
+    })
+
+    return logs
+
+def inject_privilege_escalation(start_time: datetime.datetime) -> List[Dict]:
+    """
+    Scenario: Normal login, then repeated failures accessing Admin/Sudo.
+    Sequence Anomaly: LOGIN -> MFA -> APP -> ADMIN_FAIL -> ADMIN_FAIL
+    """
+    user = random.choice(USERS) # Regular user, not admin
+    ip = random.choice(VPN_IPS)
+    region = "us-east-1"
+    session_id = str(uuid.uuid4())
+    
+    logs = []
+    current_time = start_time
+
+    # 1. Normal Login Flow (To look legitimate initially)
+    steps = ["LOGIN_PROMPT", "LOGIN_SUCCESS", "MFA_SUCCESS", "APP_ACCESS"]
+    for step in steps:
+        current_time += datetime.timedelta(seconds=random.randint(2, 5))
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": user,
+            "session_id": session_id,
+            "ip_address": ip,
+            "event_type": step,
+            "region": region,
+            "is_attack": True,  # The whole session is tainted
+            "attack_type": "PrivilegeEscalation"
+        })
+
+    # 2. The Suspicious Behavior (Accessing forbidden areas)
+    for _ in range(4):
+        current_time += datetime.timedelta(seconds=random.randint(5, 10))
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": user,
+            "session_id": session_id,
+            "ip_address": ip,
+            "event_type": "ADMIN_PANEL_ACCESS", # This transition is rare for regular users
+            "region": region,
+            "is_attack": True,
+            "attack_type": "PrivilegeEscalation"
+        })
+        
+        current_time += datetime.timedelta(seconds=1)
+        logs.append({
+            "timestamp": current_time.isoformat(),
+            "user_id": user,
+            "session_id": session_id,
+            "ip_address": ip,
+            "event_type": "ACCESS_DENIED", # Result
+            "region": region,
+            "is_attack": True,
+            "attack_type": "PrivilegeEscalation"
+        })
+
+    return logs
+
+# ------------------------------------------------------------
+# MAIN LOOP
+# ------------------------------------------------------------
+
+def main():
+    print("==================================================")
+    print(" VaultShield — Synthetic Auth Log Generator")
+    print("==================================================")
+    
+    end_date = datetime.datetime.now(datetime.timezone.utc)
+    start_date = end_date - datetime.timedelta(days=DAYS_BACK)
+    
+    all_logs = []
+    
+    # 1. Generate Normal Traffic
+    print(f"Generating {TOTAL_NORMAL_SESSIONS} normal sessions...")
+    for _ in range(TOTAL_NORMAL_SESSIONS):
+        t = get_random_time(start_date, end_date)
+        all_logs.extend(generate_normal_session(t))
+        
+    # 2. Inject Attacks
+    num_attacks = int(TOTAL_NORMAL_SESSIONS * ATTACK_INJECTION_RATE)
+    print(f"Injecting ~{num_attacks} attack scenarios...")
+    
+    for _ in range(num_attacks):
+        t = get_random_time(start_date, end_date)
+        scenario = random.choice([
+            "brute_force", "password_spray", 
+            "impossible_travel", "priv_esc"
+        ])
+        
+        if scenario == "brute_force":
+            all_logs.extend(inject_brute_force(t))
+        elif scenario == "password_spray":
+            all_logs.extend(inject_password_spray(t))
+        elif scenario == "impossible_travel":
+            all_logs.extend(inject_impossible_travel(t))
+        elif scenario == "priv_esc":
+            all_logs.extend(inject_privilege_escalation(t))
+
+    # 3. Sort by Timestamp (essential for time-series realism)
+    print("Sorting logs by timestamp...")
+    all_logs.sort(key=lambda x: x["timestamp"])
+    
+    # 4. Write to JSONL
+    print(f"Writing {len(all_logs)} events to {OUTPUT_FILE}...")
+    with OUTPUT_FILE.open("w", encoding="utf-8") as f:
+        for entry in all_logs:
+            f.write(json.dumps(entry) + "\n")
+            
+    print("Done. Ready for sequence modeling.")
+
+if __name__ == "__main__":
+    main()
 
 ==================================================
 FILE PATH: synthetic\generate_gridsense_timeseries.py
@@ -5088,6 +6158,185 @@ if __name__ == "__main__":
 
 
 ==================================================
+FILE PATH: synthetic\generate_vaultshield_auth_logs.py
+==================================================
+
+"""
+generate_vaultshield_auth_logs.py
+---------------------------------
+Generates high-fidelity synthetic auth logs with specific attack patterns.
+"""
+import json
+import random
+import uuid
+import datetime
+import pathlib
+import numpy as np
+from tqdm import tqdm
+
+OUTPUT_PATH = pathlib.Path("data/raw/vaultshield_auth_logs.jsonl")
+OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# --- Config ---
+N_SESSIONS = 12000
+ATTACK_RATE = 0.04  # 4% attacks
+START_DATE = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+
+USERS = [f"user_{i:04d}" for i in range(1000)]
+ORGS = ["org_A", "org_B", "org_C"]
+REGIONS = ["us-east-1", "us-west-2", "eu-central-1"]
+
+# Realistic User Agents
+UAS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X)"
+]
+
+# Attack Patterns
+ATTACKS = ["password_spray", "impossible_travel", "token_replay", "mfa_fatigue", "priv_escalation"]
+
+def get_event_time(base_time, offset_seconds=0):
+    return (base_time + datetime.timedelta(seconds=offset_seconds)).isoformat()
+
+def generate_normal_session(start_time):
+    """Standard happy path: Login -> MFA -> Token -> Success"""
+    user = random.choice(USERS)
+    sid = str(uuid.uuid4())
+    ip = f"10.0.{random.randint(1,255)}.{random.randint(1,255)}"
+    
+    events = []
+    
+    # 1. Login
+    events.append({
+        "event_type": "login_attempt",
+        "result": "success", 
+        "mfa_method": "password"
+    })
+    
+    # 2. MFA (95% success)
+    events.append({
+        "event_type": "mfa_challenge",
+        "result": "sent",
+        "mfa_method": "push"
+    })
+    
+    events.append({
+        "event_type": "mfa_response",
+        "result": "approved",
+        "latency_ms": int(np.random.normal(4000, 1000)) # Human reaction time
+    })
+    
+    # 3. Token Issuance
+    events.append({
+        "event_type": "token_issued",
+        "scope": "read:user"
+    })
+    
+    # 4. Usage
+    for _ in range(random.randint(1, 5)):
+        events.append({
+            "event_type": "api_access",
+            "resource": "dashboard",
+            "result": "allow"
+        })
+
+    return pack_session(events, user, sid, ip, start_time, is_attack=False)
+
+def generate_mfa_fatigue(start_time):
+    """Attack: Multiple MFA pushes rejected, finally approved (User gave up)"""
+    user = random.choice(USERS)
+    sid = str(uuid.uuid4())
+    ip = f"192.168.1.{random.randint(1,255)}" # Suspicious IP
+    
+    events = []
+    events.append({"event_type": "login_attempt", "result": "success"})
+    
+    # Fatigue loop
+    for _ in range(random.randint(3, 6)):
+        events.append({"event_type": "mfa_challenge", "result": "sent"})
+        events.append({"event_type": "mfa_response", "result": "denied", "latency_ms": 1200})
+    
+    # Final succumb
+    events.append({"event_type": "mfa_challenge", "result": "sent"})
+    events.append({"event_type": "mfa_response", "result": "approved", "latency_ms": 500})
+    events.append({"event_type": "token_issued", "scope": "admin:all"})
+    
+    return pack_session(events, user, sid, ip, start_time, is_attack=True, attack_type="mfa_fatigue")
+
+def generate_priv_escalation(start_time):
+    """Attack: Standard login -> weird role change -> admin action"""
+    user = random.choice(USERS)
+    sid = str(uuid.uuid4())
+    ip = f"172.16.{random.randint(1,255)}.{random.randint(1,255)}"
+    
+    events = [
+        {"event_type": "login_attempt", "result": "success"},
+        {"event_type": "mfa_challenge", "result": "sent"},
+        {"event_type": "mfa_response", "result": "approved"},
+        {"event_type": "token_issued", "scope": "read:user"},
+        {"event_type": "api_access", "resource": "profile", "result": "allow"},
+        # The anomaly:
+        {"event_type": "role_assume", "role": "admin", "result": "success"}, 
+        {"event_type": "api_access", "resource": "users:delete", "result": "allow"}
+    ]
+    return pack_session(events, user, sid, ip, start_time, is_attack=True, attack_type="admin_escalation")
+
+def pack_session(events, user, sid, ip, start_time, is_attack, attack_type=None):
+    """Wraps event list into full JSON objects"""
+    logs = []
+    current_time = start_time
+    region = random.choice(REGIONS)
+    ua = random.choice(UAS)
+    
+    for e in events:
+        # Time drift
+        dt = random.randint(1, 5)
+        current_time += datetime.timedelta(seconds=dt)
+        
+        log = {
+            "timestamp_utc": current_time.isoformat(),
+            "session_id": sid,
+            "user_id": user,
+            "ip": ip,
+            "region": region,
+            "user_agent": ua,
+            "is_attack": is_attack,
+            "attack_type": attack_type,
+            **e
+        }
+        logs.append(log)
+    return logs
+
+def main():
+    print(f"Generating {N_SESSIONS} sessions...")
+    all_logs = []
+    
+    for _ in tqdm(range(N_SESSIONS)):
+        t = START_DATE + datetime.timedelta(minutes=random.randint(0, 10000))
+        
+        if random.random() < ATTACK_RATE:
+            atk = random.choice(["mfa", "priv"])
+            if atk == "mfa":
+                all_logs.extend(generate_mfa_fatigue(t))
+            else:
+                all_logs.extend(generate_priv_escalation(t))
+        else:
+            all_logs.extend(generate_normal_session(t))
+            
+    # Sort by time
+    all_logs.sort(key=lambda x: x["timestamp_utc"])
+    
+    with OUTPUT_PATH.open("w") as f:
+        for log in all_logs:
+            f.write(json.dumps(log) + "\n")
+            
+    print(f"Done. Saved to {OUTPUT_PATH}")
+
+if __name__ == "__main__":
+    main()
+
+==================================================
 FILE PATH: web\index.html
 ==================================================
 
@@ -5169,6 +6418,8 @@ FILE PATH: web\index.html
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script> // [MODIFIED] Add OrbitControls
   <script src="./js/heliocloud_card.js" defer></script>
+  <script src="./data/vaultshield_artifacts.js" defer></script>
+  <script src="./js/vaultshield_card.js" defer></script>
 
 </head>
 
@@ -5263,6 +6514,498 @@ FILE PATH: web\index.html
   </script>
 </body>
 </html>
+
+==================================================
+FILE PATH: web\assets\gridsense_facts.json
+==================================================
+
+{
+  "product": "GridSense",
+  "slug": "gridsense",
+  "tagline": "SCADA-grade monitoring and anomaly detection for electrical substations and grid assets.",
+  "capabilities": [
+    "Multivariate time-series anomaly detection across load, voltage, frequency, and thermal signals",
+    "Substation-level health scoring with temporal context",
+    "Early warning detection for voltage sag, thermal drift, and abnormal load ramps",
+    "Fleet-wide comparison and regime clustering across substations",
+    "Grace-period-aware alerting to reduce false positives during transient events",
+    "Root-cause hints via correlated signal deviation analysis"
+  ],
+  "metrics": {
+    "anomaly_precision_grace": 0.88,
+    "anomaly_recall_grace": 0.91,
+    "false_positive_rate": 0.04,
+    "mean_time_to_detect_minutes": 6.5,
+    "p95_detection_latency_minutes": 12.0
+  },
+  "runbooks": [
+    {
+      "title": "Voltage sag detected",
+      "steps": [
+        "Confirm whether the event coincides with scheduled switching or maintenance windows",
+        "Compare phase voltages across adjacent feeders to rule out sensor-level issues",
+        "Check recent load ramp rates for abrupt changes exceeding historical baselines",
+        "Inspect transformer oil temperature for correlated thermal stress",
+        "If sustained beyond 10 minutes, escalate to field operations for inspection"
+      ]
+    },
+    {
+      "title": "Abnormal load ramp",
+      "steps": [
+        "Validate load change against historical diurnal patterns for the substation",
+        "Cross-check upstream generation and downstream demand signals",
+        "Inspect frequency stability during the ramp period",
+        "Assess whether the anomaly propagates to peer substations",
+        "Classify as transient vs structural before triggering customer-facing alerts"
+      ]
+    },
+    {
+      "title": "Thermal drift anomaly",
+      "steps": [
+        "Verify oil temperature sensor calibration and recent maintenance logs",
+        "Check ambient temperature conditions and cooling system status",
+        "Correlate thermal readings with sustained load increases",
+        "Review historical thermal trends for seasonal baseline shifts",
+        "Escalate if temperature exceeds safe operating thresholds"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does GridSense distinguish between transient events and true anomalies?",
+      "a": "GridSense applies temporal context and grace-period-aware scoring, allowing short-lived transients (such as switching operations) to decay without triggering alerts unless deviations persist or propagate across correlated signals."
+    },
+    {
+      "q": "Is GridSense intended to replace SCADA systems?",
+      "a": "No. GridSense complements existing SCADA infrastructure by providing higher-level analytics, anomaly detection, and fleet-wide insight without interfering with control systems."
+    },
+    {
+      "q": "What data resolution does GridSense require?",
+      "a": "GridSense supports input resolutions from sub-minute telemetry to 5-minute aggregates, with detection sensitivity adapting to the available sampling rate."
+    }
+  ]
+}
+
+
+==================================================
+FILE PATH: web\assets\heliocloud_facts.json
+==================================================
+
+{
+  "product": "HelioCloud",
+  "slug": "heliocloud",
+  "tagline": "Cloud-native observability platform for metrics, logs, and distributed tracing at scale.",
+  "capabilities": [
+    "High-cardinality metrics ingestion with cost-aware aggregation",
+    "End-to-end distributed tracing across services and regions",
+    "Log correlation with metrics and traces for rapid root-cause analysis",
+    "Latency and error budget monitoring aligned with SLOs",
+    "Anomaly detection on service-level indicators (SLIs)",
+    "Change-aware alerting to reduce noise during deployments and scaling events"
+  ],
+  "metrics": {
+    "alert_precision_grace": 0.87,
+    "alert_recall_grace": 0.90,
+    "false_positive_rate": 0.05,
+    "mean_time_to_detect_minutes": 5.1,
+    "p95_detection_latency_minutes": 11.3,
+    "metric_ingest_latency_p95_seconds": 8.2
+  },
+  "runbooks": [
+    {
+      "title": "Latency spike detected",
+      "steps": [
+        "Confirm whether the spike coincides with a recent deployment or configuration change",
+        "Compare p50, p95, and p99 latency to identify tail amplification",
+        "Inspect upstream and downstream service dependencies for correlated slowdowns",
+        "Review recent autoscaling events and resource saturation indicators",
+        "If latency persists beyond 15 minutes, escalate to service owners"
+      ]
+    },
+    {
+      "title": "Error rate increase",
+      "steps": [
+        "Validate error classification (4xx vs 5xx) to scope ownership",
+        "Correlate error spikes with recent releases or traffic pattern changes",
+        "Inspect trace samples for common failure paths",
+        "Check dependency health for timeouts or throttling",
+        "Apply temporary alert dampening if caused by expected changes"
+      ]
+    },
+    {
+      "title": "Metrics ingestion delay",
+      "steps": [
+        "Confirm backlog growth in ingestion pipelines",
+        "Check regional collectors for CPU or memory saturation",
+        "Inspect network latency between agents and collectors",
+        "Validate retention and aggregation configuration for high-cardinality metrics",
+        "Escalate if ingest delay impacts SLO-based alerting"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does HelioCloud reduce alert fatigue?",
+      "a": "HelioCloud incorporates temporal context, deployment awareness, and grace-period scoring to suppress short-lived noise while preserving visibility into sustained or correlated issues."
+    },
+    {
+      "q": "Does HelioCloud replace existing metrics or logging systems?",
+      "a": "No. HelioCloud integrates with existing telemetry sources and collectors, acting as a unifying analysis and correlation layer rather than a replacement."
+    },
+    {
+      "q": "How does HelioCloud handle high-cardinality data?",
+      "a": "HelioCloud applies adaptive aggregation, selective indexing, and cost-aware retention policies to balance query performance with observability fidelity."
+    }
+  ]
+}
+
+
+==================================================
+FILE PATH: web\assets\lineaops_facts.json
+==================================================
+
+{
+  "product": "LineaOps",
+  "slug": "lineaops",
+  "tagline": "Operational monitoring and anomaly detection for industrial automation, robotics, and manufacturing lines.",
+  "capabilities": [
+    "Real-time monitoring of robot cells, conveyors, and PLC-controlled assets",
+    "Detection of cycle-time drift and throughput degradation",
+    "Correlation of telemetry across mechanical, electrical, and control signals",
+    "Early warning for equipment stress, misalignment, and control instability",
+    "Change-aware alerting during firmware updates and process reconfiguration",
+    "Fleet-wide comparison across production lines and facilities"
+  ],
+  "metrics": {
+    "anomaly_precision_grace": 0.86,
+    "anomaly_recall_grace": 0.88,
+    "false_positive_rate": 0.06,
+    "mean_time_to_detect_minutes": 7.4,
+    "p95_detection_latency_minutes": 14.8,
+    "unplanned_downtime_reduction_percent": 18.5
+  },
+  "runbooks": [
+    {
+      "title": "Cycle time degradation detected",
+      "steps": [
+        "Compare current cycle times against historical baselines for the same product SKU",
+        "Inspect upstream and downstream stations for accumulated backpressure",
+        "Review recent firmware or parameter changes on affected robot controllers",
+        "Check mechanical wear indicators and lubrication schedules",
+        "Escalate to maintenance if degradation persists beyond acceptable thresholds"
+      ]
+    },
+    {
+      "title": "PLC communication instability",
+      "steps": [
+        "Verify network health between PLCs and supervisory systems",
+        "Check for recent changes to PLC logic or communication parameters",
+        "Inspect error counters and retransmission rates",
+        "Validate grounding and electromagnetic interference conditions",
+        "Switch to degraded operation mode if instability affects safety"
+      ]
+    },
+    {
+      "title": "Canary deployment failure",
+      "steps": [
+        "Identify affected robot cells and isolate from the main production line",
+        "Review canary performance metrics against control groups",
+        "Check compatibility between new firmware and existing PLC logic",
+        "Roll back firmware if safety or throughput is impacted",
+        "Document findings and update deployment validation criteria"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does LineaOps handle safety-critical systems?",
+      "a": "LineaOps operates in an observational role only and does not issue control commands. Safety systems and interlocks remain authoritative within existing industrial control frameworks."
+    },
+    {
+      "q": "Can LineaOps integrate with legacy PLCs?",
+      "a": "Yes. LineaOps supports common industrial protocols and can ingest telemetry from legacy PLCs through gateways without requiring intrusive changes."
+    },
+    {
+      "q": "How does LineaOps distinguish process drift from normal variability?",
+      "a": "LineaOps models historical process variability and applies temporal context, allowing expected fluctuations to decay while highlighting sustained or correlated deviations."
+    }
+  ]
+}
+
+
+==================================================
+FILE PATH: web\assets\manifest.json
+==================================================
+
+{
+  "platform": "ApexGrid",
+  "description": "Local-first demo platform showcasing AI/ML incident analysis across infrastructure, security, and observability products.",
+  "products": [
+    "gridsense",
+    "vaultshield",
+    "heliocloud",
+    "lineaops"
+  ]
+}
+
+
+==================================================
+FILE PATH: web\assets\vaultshield_facts.json
+==================================================
+
+{
+  "product": "VaultShield",
+  "slug": "vaultshield",
+  "tagline": "Identity, access, and threat detection platform for modern cloud and enterprise environments.",
+  "capabilities": [
+    "Anomalous authentication detection across users, devices, and geographies",
+    "Policy-based authorization enforcement with conflict and drift detection",
+    "Adaptive risk scoring for login and API access attempts",
+    "Correlation of identity events with infrastructure and application context",
+    "Grace-period-aware alerting to reduce false positives during expected access changes",
+    "Audit-grade logging and forensic timelines for incident response"
+  ],
+  "metrics": {
+    "login_anomaly_precision_grace": 0.91,
+    "login_anomaly_recall_grace": 0.89,
+    "false_positive_rate": 0.03,
+    "mean_time_to_detect_minutes": 4.2,
+    "p95_detection_latency_minutes": 9.5
+  },
+  "runbooks": [
+    {
+      "title": "Anomalous login detected",
+      "steps": [
+        "Validate whether the login originates from a known device or corporate network",
+        "Check recent password resets, MFA changes, or role updates for the affected user",
+        "Review concurrent login attempts from different geographies or IP ranges",
+        "Correlate identity events with recent application or infrastructure changes",
+        "If risk score remains elevated, temporarily restrict access and notify security operations"
+      ]
+    },
+    {
+      "title": "Multiple failed authentication attempts",
+      "steps": [
+        "Confirm whether failures align with a misconfigured service account or automation",
+        "Inspect IP reputation and ASN history for the source addresses",
+        "Check for similar failures across other user accounts or tenants",
+        "Apply rate limiting or temporary lockout if attack patterns are detected",
+        "Escalate to incident response if coordinated behavior is observed"
+      ]
+    },
+    {
+      "title": "Authorization policy conflict",
+      "steps": [
+        "Identify overlapping role-based and attribute-based access policies",
+        "Review recent policy deployments or configuration changes",
+        "Simulate access decisions to determine unintended privilege grants or denials",
+        "Roll back conflicting policies if production access is impacted",
+        "Document resolution and update policy validation rules to prevent recurrence"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does VaultShield differentiate between benign access changes and malicious behavior?",
+      "a": "VaultShield evaluates identity events using temporal context, device familiarity, network reputation, and behavioral baselines, allowing expected changes to decay while highlighting sustained or correlated anomalies."
+    },
+    {
+      "q": "Does VaultShield replace existing IAM or SSO providers?",
+      "a": "No. VaultShield integrates with existing IAM and SSO systems to provide higher-level detection, correlation, and response guidance without replacing authoritative identity sources."
+    },
+    {
+      "q": "How are alerts prioritized for security teams?",
+      "a": "Alerts are scored based on potential impact, confidence, and blast radius, enabling security teams to focus on high-risk events while suppressing low-confidence noise."
+    }
+  ]
+}
+
+
+==================================================
+FILE PATH: web\components\assistant_card.html
+==================================================
+
+<!-- web/components/assistant_card.html -->
+<section
+  class="mt-10 max-w-5xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl"
+  data-assistant-card
+>
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-6 mb-6">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        ApexGrid Incident Assistant
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-2xl">
+        Local-first incident copilot that can pull context from all product cards (GridSense, VaultShield, LineaOps, HelioCloud).
+        Runs on your machine via Ollama, with an optional browser-only mode later.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <!-- Mode toggle -->
+      <div class="inline-flex rounded-2xl border border-slate-700 bg-slate-950/40 p-1">
+        <button
+          type="button"
+          class="px-3 py-2 text-xs font-semibold rounded-xl bg-sky-500/90 text-slate-950"
+          data-ai-mode="ollama"
+          data-ai-mode-active
+          title="Uses your local Ollama instance (fastest for dev)"
+        >
+          Local (Ollama)
+        </button>
+        <button
+          type="button"
+          class="px-3 py-2 text-xs font-semibold rounded-xl text-slate-200 hover:bg-slate-800/60"
+          data-ai-mode="browser"
+          title="Browser-only llama.cpp mode (optional later)"
+          disabled
+        >
+          Local (Browser)
+        </button>
+      </div>
+
+      <!-- Status pill -->
+      <div
+        class="inline-flex items-center rounded-2xl border border-slate-700 bg-slate-950/40 px-4 py-2 text-xs font-medium text-slate-100 whitespace-nowrap"
+        aria-live="polite"
+      >
+        <span class="mr-2 h-2 w-2 rounded-full bg-emerald-400" data-ai-status-dot></span>
+        <span data-ai-status-text>Ready (local)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="grid gap-6 lg:grid-cols-3">
+    <!-- Left: Suggested prompts + Sources -->
+    <aside class="lg:col-span-1 space-y-4">
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <h4 class="text-sm font-semibold text-slate-100">Try asking</h4>
+        <div class="mt-3 flex flex-col gap-2">
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Summarize current platform risks across GridSense + VaultShield.
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Draft a customer update for a Sev2 GridSense telemetry drop in us-west-2.
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            What runbook steps should we follow for VaultShield anomalous login alerts?
+          </button>
+          <button
+            type="button"
+            class="text-left text-xs text-slate-200 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+            data-ai-suggest
+          >
+            Produce a triage checklist that an SRE can execute in 15 minutes.
+          </button>
+        </div>
+        <p class="mt-3 text-[0.7rem] text-slate-500">
+          Tip: This assistant can use a local knowledge manifest (facts/runbooks) from each product card as sources.
+        </p>
+      </div>
+
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <h4 class="text-sm font-semibold text-slate-100">Sources used</h4>
+        <p class="mt-2 text-xs text-slate-400">
+          When the assistant cites local product knowledge, it will list snippets here.
+        </p>
+
+        <div class="mt-3 space-y-2" data-ai-sources>
+          <div class="text-xs text-slate-500 italic">
+            No sources yet.
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right: Chat -->
+    <div class="lg:col-span-2 flex flex-col">
+      <div
+        class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 h-[420px] overflow-y-auto"
+        data-ai-transcript
+        aria-label="Chat transcript"
+      >
+        <!-- System greeting -->
+        <div class="flex gap-3 mb-4">
+          <div class="h-9 w-9 rounded-2xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+            <span class="text-sky-300 text-xs font-bold">AG</span>
+          </div>
+          <div class="flex-1">
+            <div class="text-xs text-slate-400 mb-1">Assistant</div>
+            <div class="text-sm text-slate-100 leading-relaxed">
+              Ask me about incidents, triage, and runbooks across the ApexGrid product suite.
+              I can operate fully locally (Ollama) and will surface any local “facts” sources I used.
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages will append here -->
+        <div data-ai-messages></div>
+      </div>
+
+      <!-- Input -->
+      <div class="mt-4 rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+        <div class="flex gap-3">
+          <input
+            type="text"
+            class="flex-1 rounded-xl bg-slate-950/60 border border-slate-800 px-4 py-3 text-slate-200 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-sky-500/40"
+            placeholder="Ask a question… (e.g., “Draft a Sev2 customer update for telemetry drop.”)"
+            data-ai-input
+          />
+          <button
+            type="button"
+            class="rounded-xl px-4 py-3 bg-sky-500/90 text-slate-950 font-semibold hover:bg-sky-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            data-ai-send
+          >
+            Send
+          </button>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between gap-3">
+          <div class="text-[0.7rem] text-slate-500">
+            Local mode uses your machine. No data is sent to third parties unless you later enable cloud mode.
+          </div>
+
+          <div class="flex items-center gap-2">
+            <label class="text-[0.7rem] text-slate-400 flex items-center gap-2">
+              <input type="checkbox" class="accent-sky-500" data-ai-include-sources checked />
+              Include local sources
+            </label>
+
+            <button
+              type="button"
+              class="text-[0.7rem] text-slate-300 border border-slate-800 bg-slate-900/40 hover:bg-slate-900/70 rounded-xl px-3 py-2"
+              data-ai-clear
+              title="Clear transcript"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer hint -->
+      <p class="mt-3 text-xs text-slate-500">
+        <span class="text-slate-400">Next:</span> wire in <code class="text-slate-300">web/assets/manifest.json</code> +
+        <code class="text-slate-300">*_facts.json</code> so the assistant can cite runbooks/metrics from each product.
+      </p>
+    </div>
+  </div>
+</section>
+
 
 ==================================================
 FILE PATH: web\components\gridsense_card.html
@@ -5551,6 +7294,1176 @@ FILE PATH: web\components\heliocloud_card.html
 
   </div>
 </section>
+
+==================================================
+FILE PATH: web\components\vaultshield_card.html
+==================================================
+
+<section
+  class="mt-10 max-w-6xl mx-auto bg-slate-900/80 border border-slate-800 rounded-3xl p-8 shadow-xl backdrop-blur-sm fade-in"
+>
+  <div class="flex items-start justify-between gap-6 mb-8">
+    <div>
+      <h3 class="text-2xl font-semibold text-slate-50">
+        VaultShield — Threat Narratives
+      </h3>
+      <p class="mt-1 text-sm text-slate-300 max-w-xl">
+        Sequence-based anomaly detection for identity attacks (Password Spray, Impossible Travel).
+      </p>
+    </div>
+
+    <div
+      class="inline-flex items-center rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-medium text-rose-300 whitespace-nowrap"
+    >
+      <span class="mr-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+      Markov Chain Active
+    </div>
+  </div>
+
+  <div data-tab-group="vaultshield" class="flex flex-col min-h-[460px]">
+    
+    <div class="flex-none flex flex-wrap gap-6 border-b border-slate-800 text-sm font-medium text-slate-400 mb-6">
+      <button
+        type="button"
+        data-tab-target="monitor"
+        class="pb-3 border-b-2 border-rose-500 text-slate-50 transition-colors"
+      >
+        Threat Monitor
+      </button>
+      <button
+        type="button"
+        data-tab-target="forensics"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Session Forensics
+      </button>
+      <button
+        type="button"
+        data-tab-target="metrics"
+        class="pb-3 border-b-2 border-transparent hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Detection Metrics
+      </button>
+    </div>
+
+    <div data-tab-content="monitor" class="flex-1 flex flex-col min-h-0 animate-fade-in">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
+            <p class="text-slate-400 text-[0.65rem] uppercase font-bold tracking-wider mb-2">Current Threat Level</p>
+            <div class="flex items-baseline gap-2">
+                <span id="vs-stat-threat-level" class="text-3xl font-mono font-bold text-rose-500">ANALYZING</span>
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
+            <p class="text-slate-400 text-[0.65rem] uppercase font-bold tracking-wider mb-2">Sessions Analyzed</p>
+            <span id="vs-stat-sessions" class="text-3xl font-mono font-bold text-slate-200">--</span>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
+            <p class="text-slate-400 text-[0.65rem] uppercase font-bold tracking-wider mb-2">Attacks Blocked (7d)</p>
+            <span id="vs-stat-blocked" class="text-3xl font-mono font-bold text-emerald-400">--</span>
+        </div>
+      </div>
+
+      <div class="flex-1 relative rounded-2xl border border-slate-800 bg-slate-950/50 p-4 min-h-[300px]">
+        <h4 class="text-xs font-bold text-slate-500 mb-4 uppercase tracking-wider">Top Detected Attack Vectors</h4>
+        <div class="absolute inset-0 top-10 p-4">
+            <canvas data-vs-attack-chart></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div data-tab-content="forensics" class="hidden flex-1 flex flex-col animate-fade-in">
+        <div class="flex items-center justify-between mb-4">
+            <h4 class="text-sm text-slate-300">Analysis of Top Anomalous Session</h4>
+            <div id="vs-session-header" class="text-xs font-mono text-slate-500">ID: --</div>
+        </div>
+
+        <div class="w-full overflow-x-auto pb-4 mb-6 scrollbar-thin scrollbar-thumb-slate-700">
+            <div id="vs-timeline-container" class="flex items-center min-w-max px-4 py-8 space-x-2">
+                </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="rounded-xl border border-rose-500/20 bg-rose-500/5 p-5">
+                <p class="text-rose-400 text-xs font-bold uppercase mb-2">Anomaly Detected</p>
+                <p id="vs-explanation-text" class="text-slate-200 text-sm leading-relaxed">
+                    Loading analysis...
+                </p>
+            </div>
+            <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-5">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-slate-400 text-xs font-bold uppercase">Sequence Score</p>
+                    <span id="vs-score-val" class="text-xl font-mono font-bold text-rose-500">--</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2">
+                    <div id="vs-score-bar" class="bg-gradient-to-r from-emerald-500 to-rose-500 h-1.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p class="text-[0.65rem] text-slate-500 mt-2">
+                    Higher scores indicate rare or impossible event transitions based on the Markov model.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div data-tab-content="metrics" class="hidden flex-1 animate-fade-in">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-6 h-[300px] relative">
+                <h4 class="text-xs font-bold text-slate-500 mb-4 uppercase">Score Distribution (Normal vs Attack)</h4>
+                <div class="absolute inset-0 top-10 p-4">
+                    <canvas data-vs-dist-chart></canvas>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm text-slate-300">False Positive Rate</span>
+                        <span class="text-sm font-mono text-emerald-400 font-bold">0.4%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="w-[0.4%] bg-emerald-400 h-1 rounded-full"></div></div>
+                </div>
+
+                <div class="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm text-slate-300">Detection Rate (Recall)</span>
+                        <span class="text-sm font-mono text-sky-400 font-bold">98.2%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="w-[98.2%] bg-sky-400 h-1 rounded-full"></div></div>
+                </div>
+
+                <div class="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm text-slate-300">Model Precision (PR-AUC)</span>
+                        <span id="vs-metric-prauc" class="text-sm font-mono text-amber-400 font-bold">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+  </div>
+</section>
+
+==================================================
+FILE PATH: web\js\agent_router.js
+==================================================
+
+// web/js/agent_router.js
+//
+// ApexGrid Incident Assistant — Agent Router
+// -----------------------------------------
+// Purpose:
+// - Provide a single, stable interface for the UI:
+//     agent.respond(userText, onToken)
+// - Route to different backends (Local Ollama now; Browser llama.cpp later)
+// - Optionally inject local KB context (facts/runbooks) into the prompt
+// - Track conversation history (messages[]) in an OpenAI/Ollama-style format
+//
+// Expected DOM (from assistant_card.html):
+// - root: [data-assistant-card]
+// - mode buttons: [data-ai-mode="ollama"], [data-ai-mode="browser"]
+// - input: [data-ai-input]
+// - send: [data-ai-send]
+// - transcript: [data-ai-transcript], [data-ai-messages]
+// - clear: [data-ai-clear]
+// - suggest buttons: [data-ai-suggest]
+// - status: [data-ai-status-text], [data-ai-status-dot]
+// - sources: [data-ai-sources]
+// - include sources checkbox: [data-ai-include-sources]
+//
+// Dependencies:
+// - web/js/ollama_client.js must export: ollamaChatStream({ host, model, messages, onToken, onMeta })
+//
+// Notes:
+// - Local KB uses manifest + facts JSON files under /web/assets
+//   (wired here with fetch + naive search). You can later replace this with
+//   embeddings + vector search without changing the UI contract.
+
+import { ollamaChatStream } from "./ollama_client.js";
+
+const DEFAULTS = {
+  ollamaModel: "qwen3:latest",
+  ollamaHost: "http://localhost:11434",
+  maxKbSnippets: 6,
+  maxKbChars: 1400,
+  systemPrompt: [
+    "You are the ApexGrid Incident Assistant.",
+    "You help SREs and infra leads triage incidents across ApexGrid products (GridSense, VaultShield, LineaOps, HelioCloud).",
+    "Be concise, actionable, and technically grounded. Prefer checklists and concrete next steps.",
+    "If you use local product knowledge snippets, cite them as [KB:ProductName • SnippetTitle].",
+    "If information is missing, ask 1-2 clarifying questions."
+  ].join(" ")
+};
+
+// --------------------
+// TEMP DEBUG SETTINGS
+// --------------------
+const DEBUG_AGENT = true;
+
+// Logs every parsed NDJSON frame keys + “where is the text?”
+const DEBUG_LOG_FRAMES = true;
+
+// Logs token chunks if they appear
+const DEBUG_LOG_TOKENS = false;
+
+// Limit how much content we print when logging candidates
+const DEBUG_CONTENT_PREVIEW_CHARS = 260;
+
+function $(root, sel) {
+  return root.querySelector(sel);
+}
+
+function $all(root, sel) {
+  return Array.from(root.querySelectorAll(sel));
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function preview(s, n = DEBUG_CONTENT_PREVIEW_CHARS) {
+  const str = String(s ?? "");
+  if (!str) return "";
+  return str.length > n ? str.slice(0, n) + "…" : str;
+}
+
+function safeKeys(obj) {
+  try {
+    return Object.keys(obj || {});
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Gather string-ish fields for debugging without dumping everything.
+ * Returns an array of { path, preview } entries for any string fields found.
+ */
+function gatherStringFields(obj, { prefix = "", maxDepth = 2 } = {}) {
+  const out = [];
+  const seen = new Set();
+
+  function walk(o, p, depth) {
+    if (!o || typeof o !== "object") return;
+    if (seen.has(o)) return;
+    seen.add(o);
+
+    if (depth > maxDepth) return;
+
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      const path = p ? `${p}.${k}` : k;
+
+      if (typeof v === "string" && v.length) {
+        out.push({ path: prefix ? `${prefix}.${path}` : path, preview: preview(v) });
+      } else if (Array.isArray(v)) {
+        if (v.length && depth < maxDepth) {
+          for (let i = 0; i < Math.min(v.length, 3); i++) {
+            const item = v[i];
+            if (typeof item === "string" && item.length) {
+              out.push({
+                path: prefix ? `${prefix}.${path}[${i}]` : `${path}[${i}]`,
+                preview: preview(item)
+              });
+            } else if (item && typeof item === "object") {
+              walk(item, `${path}[${i}]`, depth + 1);
+            }
+          }
+        }
+      } else if (v && typeof v === "object") {
+        walk(v, path, depth + 1);
+      }
+    }
+  }
+
+  walk(obj, "", 0);
+  return out;
+}
+
+// ----------------------------
+// Heuristic candidate discovery
+// ----------------------------
+
+function normalizeWhitespace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+
+function looksLikeRoleString(s) {
+  const t = normalizeWhitespace(s).toLowerCase();
+  return t === "assistant" || t === "user" || t === "system" || t === "tool" || t === "developer";
+}
+
+function looksLikeLowEntropyJunk(s) {
+  const t = normalizeWhitespace(s);
+  if (!t) return true;
+
+  // Reject pure role spam like: "assistant assistant assistant ..."
+  const lower = t.toLowerCase();
+  if (/^(assistant\s*){3,}$/i.test(lower)) return true;
+
+  const words = lower.split(" ").filter(Boolean);
+  if (words.length >= 6) {
+    const freq = new Map();
+    for (const w of words) freq.set(w, (freq.get(w) || 0) + 1);
+    const max = Math.max(...freq.values());
+    const ratio = max / words.length;
+
+    // If the same token dominates the string, it’s almost certainly not real output.
+    if (ratio >= 0.65) return true;
+  }
+
+  // Too short to be useful, but not strictly empty.
+  if (t.length <= 2) return true;
+
+  return false;
+}
+
+function isProbablyMetaString(path, value) {
+  const p = String(path || "").toLowerCase();
+  const v = String(value || "");
+
+  // hard exclude common non-text fields
+  if (
+    p.endsWith(".role") ||
+    p.includes(".role") ||
+    p.endsWith(".type") ||
+    p.includes(".type") ||
+    p.endsWith(".format") ||
+    p.includes(".format")
+  ) {
+    return true;
+  }
+
+  // obvious metadata fields
+  if (
+    p.includes("model") ||
+    p.includes("created_at") ||
+    p.includes("done_reason") ||
+    p.includes("total_duration") ||
+    p.includes("load_duration") ||
+    p.includes("prompt_eval") ||
+    p.includes("eval_count") ||
+    p.includes("eval_duration") ||
+    p.includes("context") ||
+    p.includes("id")
+  ) {
+    return true;
+  }
+
+  // ISO timestamps / short identifiers
+  if (/^\d{4}-\d{2}-\d{2}t\d{2}:\d{2}:\d{2}/i.test(v)) return true;
+  if (looksLikeRoleString(v)) return true;
+
+  // Low-entropy junk / spam strings
+  if (looksLikeLowEntropyJunk(v)) return true;
+
+  return false;
+}
+
+/**
+ * Heuristic: find the "most likely" assistant text field inside a frame.
+ * Returns { text, path } or { text:"", path:"" }.
+ */
+function findBestTextCandidate(frame) {
+  const fields = gatherStringFields(frame, { prefix: "frame", maxDepth: 5 });
+  if (!fields.length) return { text: "", path: "" };
+
+  const scored = fields
+    .map(({ path }) => {
+      let score = 0;
+      const p = path.toLowerCase();
+
+      // strong positives
+      if (p.includes("message.content")) score += 80;
+      if (p.includes("choices[0].delta.content")) score += 80;
+      if (p.includes(".delta.content")) score += 70;
+
+      // common positives
+      if (p.includes("content")) score += 24;
+      if (p.includes("response")) score += 22;
+      if (p.includes("output")) score += 20;
+      if (p.includes("text")) score += 18;
+      if (p.includes("delta")) score += 14;
+
+      // negatives: role/type/meta-like paths
+      if (p.includes(".role") || p.endsWith(".role")) score -= 120;
+      if (p.includes(".type") || p.endsWith(".type")) score -= 80;
+      if (
+        p.includes("model") ||
+        p.includes("created_at") ||
+        p.includes("done_reason") ||
+        p.includes("duration") ||
+        p.includes("count") ||
+        p.includes("eval") ||
+        p.includes("context")
+      ) {
+        score -= 40;
+      }
+
+      return { path, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  function getByPath(obj, dottedPath) {
+    try {
+      let p = dottedPath;
+      if (p.startsWith("frame.")) p = p.slice("frame.".length);
+
+      const tokens = p
+        .replace(/\[(\d+)\]/g, ".$1")
+        .split(".")
+        .filter(Boolean);
+
+      let cur = obj;
+      for (const t of tokens) {
+        if (cur == null) return undefined;
+        cur = cur[t];
+      }
+      return cur;
+    } catch {
+      return undefined;
+    }
+  }
+
+  let best = { text: "", path: "", score: -Infinity, len: 0 };
+
+  for (const cand of scored.slice(0, 18)) {
+    const val = getByPath(frame, cand.path);
+    if (typeof val !== "string" || !val.length) continue;
+
+    if (isProbablyMetaString(cand.path, val)) continue;
+
+    const trimmed = normalizeWhitespace(val);
+    if (!trimmed) continue;
+
+    // Require at least a little "sentence-like" structure (helps avoid single-word fields)
+    const hasSpace = trimmed.includes(" ");
+    const hasPunct = /[.!?:;\n]/.test(trimmed);
+    const structureBonus = (hasSpace ? 4 : 0) + (hasPunct ? 4 : 0);
+
+    const total = cand.score + structureBonus + Math.min(60, trimmed.length / 18);
+    if (total > best.score || (total === best.score && trimmed.length > best.len)) {
+      best = { text: trimmed, path: cand.path, score: total, len: trimmed.length };
+    }
+  }
+
+  return { text: best.text || "", path: best.path || "" };
+}
+
+/**
+ * Stream-safe: convert a per-frame candidate into an incremental delta.
+ * Handles both:
+ * - delta frames (small chunks)
+ * - cumulative frames (growing full text)
+ */
+function computeDeltaFromCandidate(candidateText, prevText) {
+  const cur = String(candidateText || "");
+  const prev = String(prevText || "");
+
+  if (!cur) return { delta: "", nextPrev: prev };
+
+  // cumulative mode
+  if (prev && cur.startsWith(prev)) {
+    return { delta: cur.slice(prev.length), nextPrev: cur };
+  }
+
+  // delta-ish mode
+  if (cur.length <= 64) {
+    return { delta: cur, nextPrev: prev + cur };
+  }
+
+  // replacement mode
+  return { delta: cur, nextPrev: cur };
+}
+
+// Try to extract assistant text from multiple possible Ollama frame shapes.
+function extractTextFromFrame(frame) {
+  if (!frame || typeof frame !== "object") return "";
+
+  const msg = frame.message;
+  const mc = msg?.content;
+
+  if (typeof mc === "string" && mc.length) return mc;
+
+  if (typeof frame.response === "string" && frame.response.length) return frame.response;
+
+  if (typeof msg?.thinking === "string" && msg.thinking.length) return msg.thinking;
+  if (typeof msg?.reasoning === "string" && msg.reasoning.length) return msg.reasoning;
+  if (typeof msg?.reasoning_content === "string" && msg.reasoning_content.length)
+    return msg.reasoning_content;
+
+  if (typeof frame.thinking === "string" && frame.thinking.length) return frame.thinking;
+  if (typeof frame.reasoning === "string" && frame.reasoning.length) return frame.reasoning;
+  if (typeof frame.reasoning_content === "string" && frame.reasoning_content.length)
+    return frame.reasoning_content;
+
+  if (mc && typeof mc === "object") {
+    if (typeof mc.text === "string" && mc.text.length) return mc.text;
+    if (Array.isArray(mc) && mc.length) {
+      const firstText = mc.find((x) => x && typeof x.text === "string" && x.text.length);
+      if (firstText) return firstText.text;
+    }
+  }
+
+  const delta = frame?.choices?.[0]?.delta;
+  if (typeof delta?.content === "string" && delta.content.length) return delta.content;
+
+  if (typeof frame.content === "string" && frame.content.length) return frame.content;
+  if (typeof frame.output === "string" && frame.output.length) return frame.output;
+  if (typeof msg === "string" && msg.length) return msg;
+
+  return "";
+}
+
+/**
+ * Prefer "final text" style fields if present, else fall back to normal extraction.
+ */
+function extractFinalTextFromFrame(frame) {
+  const normal = extractTextFromFrame(frame);
+  if (normal && !looksLikeLowEntropyJunk(normal)) return normal;
+
+  const { text } = findBestTextCandidate(frame);
+  if (text && !looksLikeLowEntropyJunk(text)) return text;
+
+  return "";
+}
+
+/**
+ * Naive KB loader + search.
+ */
+class LocalKb {
+  constructor({ baseUrl = "./assets" } = {}) {
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.ready = false;
+    this.products = [];
+    this.docs = [];
+  }
+
+  async init() {
+    if (this.ready) return;
+
+    const manifestUrl = `${this.baseUrl}/manifest.json`;
+    try {
+      const manifest = await fetchJson(manifestUrl);
+      const products = Array.isArray(manifest?.products) ? manifest.products : [];
+      this.products = products;
+
+      const factsList = await Promise.all(
+        products.map(async (p) => {
+          const url = `${this.baseUrl}/${p}_facts.json`;
+          try {
+            return await fetchJson(url);
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      this.docs = normalizeFactsToSnippets(factsList.filter(Boolean));
+      this.ready = true;
+    } catch {
+      this.products = [];
+      this.docs = [];
+      this.ready = true;
+    }
+  }
+
+  listProducts() {
+    return [...this.products];
+  }
+
+  search(query, { maxSnippets = DEFAULTS.maxKbSnippets } = {}) {
+    const q = (query || "").trim().toLowerCase();
+    if (!q || this.docs.length === 0) return { snippets: [], joinedText: "" };
+
+    const qTerms = q
+      .split(/[\s,.;:!?()\[\]{}"']+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 3);
+
+    const scored = this.docs
+      .map((d) => {
+        const hay = (d.title + " " + d.text + " " + d.product).toLowerCase();
+        let score = 0;
+
+        for (const term of qTerms) {
+          if (!term) continue;
+          const idx = hay.indexOf(term);
+          if (idx !== -1) {
+            score += 2;
+            if ((d.title || "").toLowerCase().includes(term)) score += 2;
+          }
+        }
+
+        if (q.includes(d.product.toLowerCase())) score += 3;
+        return { d, score };
+      })
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxSnippets)
+      .map((x) => x.d);
+
+    const blocks = scored.map((s) => {
+      const label = `[KB:${s.product} • ${s.title}]`;
+      return `${label}\n${s.text}`.trim();
+    });
+
+    let joined = blocks.join("\n\n");
+    if (joined.length > DEFAULTS.maxKbChars) {
+      joined = joined.slice(0, DEFAULTS.maxKbChars) + "\n\n[KB:truncated]";
+    }
+
+    return { snippets: scored, joinedText: joined };
+  }
+}
+
+function normalizeFactsToSnippets(factsList) {
+  const snippets = [];
+  for (const facts of factsList) {
+    const product = facts.product || facts.slug || "Unknown";
+    const tagline = facts.tagline || "";
+    const capabilities = Array.isArray(facts.capabilities) ? facts.capabilities : [];
+    const metrics = facts.metrics || null;
+    const runbooks = Array.isArray(facts.runbooks) ? facts.runbooks : [];
+
+    if (tagline) {
+      snippets.push({ id: `${product}-tagline`, product, title: "Overview", text: tagline });
+    }
+
+    if (capabilities.length) {
+      snippets.push({
+        id: `${product}-capabilities`,
+        product,
+        title: "Capabilities",
+        text: capabilities.map((c) => `- ${c}`).join("\n")
+      });
+    }
+
+    if (metrics && typeof metrics === "object") {
+      const lines = Object.entries(metrics).map(([k, v]) => `- ${k}: ${formatMetric(v)}`);
+      snippets.push({ id: `${product}-metrics`, product, title: "Metrics", text: lines.join("\n") });
+    }
+
+    for (const rb of runbooks) {
+      const title = rb.title || "Runbook";
+      const steps = Array.isArray(rb.steps) ? rb.steps : [];
+      if (!steps.length) continue;
+
+      snippets.push({
+        id: `${product}-runbook-${slugify(title)}`,
+        product,
+        title,
+        text: steps.map((s) => `- ${s}`).join("\n")
+      });
+    }
+  }
+  return snippets;
+}
+
+function formatMetric(v) {
+  if (typeof v === "number") {
+    if (v >= 0 && v <= 1) return v.toFixed(3);
+    return String(Math.round(v * 1000) / 1000);
+  }
+  return String(v);
+}
+
+function slugify(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url, { cache: "no-cache" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  return await res.json();
+}
+
+/**
+ * Agent Router
+ */
+export class ApexGridAgent {
+  constructor(rootEl, opts = {}) {
+    this.root = rootEl;
+    this.opts = { ...DEFAULTS, ...opts };
+    this.mode = "ollama";
+    this.messages = [];
+    this.kb = new LocalKb({ baseUrl: "./assets" });
+
+    this._reqId = 0;
+
+    // heuristic streaming state (per request; reset in _respondOllama)
+    this._heurPrevText = "";
+
+    this.ui = {
+      modeButtons: $all(this.root, "[data-ai-mode]"),
+      statusText: $(this.root, "[data-ai-status-text]"),
+      statusDot: $(this.root, "[data-ai-status-dot]"),
+      transcript: $(this.root, "[data-ai-transcript]"),
+      messagesWrap: $(this.root, "[data-ai-messages]"),
+      input: $(this.root, "[data-ai-input]"),
+      send: $(this.root, "[data-ai-send]"),
+      clear: $(this.root, "[data-ai-clear]"),
+      suggests: $all(this.root, "[data-ai-suggest]"),
+      sources: $(this.root, "[data-ai-sources]"),
+      includeSources: $(this.root, "[data-ai-include-sources]")
+    };
+  }
+
+  async init() {
+    await this.kb.init();
+    this.messages = [{ role: "system", content: this.opts.systemPrompt }];
+
+    this._wireModeToggle();
+    this._wireSend();
+    this._wireClear();
+    this._wireSuggests();
+
+    this._setStatus("Ready (local)", "ok");
+  }
+
+  async respond(userText, onToken = () => {}) {
+    const text = (userText || "").trim();
+    if (!text) return "";
+
+    const reqId = ++this._reqId;
+
+    if (DEBUG_AGENT) console.log(`[Agent] (#${reqId}) respond()`, { text });
+
+    this.messages.push({ role: "user", content: text });
+
+    const includeKb = !!this.ui.includeSources?.checked;
+    let kbResult = { snippets: [], joinedText: "" };
+
+    if (includeKb) {
+      kbResult = this.kb.search(text);
+      this._renderSources(kbResult.snippets);
+
+      if (kbResult.joinedText) {
+        this.messages.push({
+          role: "system",
+          content:
+            "Local knowledge snippets:\n\n" +
+            kbResult.joinedText +
+            "\n\nUse these if relevant; cite as [KB:Product • Title]. If not relevant, ignore."
+        });
+      }
+    } else {
+      this._renderSources([]);
+    }
+
+    if (this.mode === "ollama") {
+      return await this._respondOllama(reqId, onToken);
+    }
+
+    throw new Error("Browser mode not enabled yet.");
+  }
+
+  async _respondOllama(reqId, onToken) {
+    this._setStatus("Generating (local Ollama)…", "busy");
+
+    const assistantChunks = [];
+    const model = this.opts.ollamaModel;
+
+    let tokenCount = 0;
+    let lastFrameText = "";
+    let doneFrameText = "";
+    let sawAnyTokenDeltas = false;
+
+    this._heurPrevText = "";
+
+    if (DEBUG_AGENT) {
+      console.log(`[Agent] (#${reqId}) calling ollamaChatStream`, {
+        host: this.opts.ollamaHost,
+        model,
+        messagesCount: this.messages.length
+      });
+    }
+
+    const fullFromClient = await ollamaChatStream({
+      host: this.opts.ollamaHost,
+      model,
+      messages: this.messages,
+
+      onToken: (t, meta) => {
+        if (meta && typeof meta === "object") {
+          const extracted = extractFinalTextFromFrame(meta);
+          if (extracted) lastFrameText = extracted;
+
+          if (DEBUG_AGENT && meta.done) {
+            doneFrameText = extracted || doneFrameText;
+
+            console.log(`[Agent] (#${reqId}) [DONE frame]`, {
+              keys: safeKeys(meta),
+              messageKeys: safeKeys(meta.message),
+              extractedPreview: preview(extracted),
+              done_reason: meta.done_reason
+            });
+
+            const msgStrings = gatherStringFields(meta.message, { prefix: "message", maxDepth: 3 });
+            const topStrings = gatherStringFields(meta, { prefix: "frame", maxDepth: 3 });
+
+            console.log(`[Agent] (#${reqId}) [DONE] string fields (message)`, msgStrings);
+            console.log(`[Agent] (#${reqId}) [DONE] string fields (frame)`, topStrings);
+          }
+        }
+
+        if (typeof t === "string" && t.length) {
+          // protect against role spam
+          if (looksLikeLowEntropyJunk(t)) return;
+
+          sawAnyTokenDeltas = true;
+          assistantChunks.push(t);
+          tokenCount++;
+
+          if (DEBUG_AGENT && DEBUG_LOG_TOKENS) {
+            console.log(`[Agent] (#${reqId}) token[${tokenCount}]`, preview(t));
+          }
+
+          try {
+            onToken(t);
+          } catch (e) {
+            if (DEBUG_AGENT) console.warn(`[Agent] (#${reqId}) onToken callback threw`, e);
+          }
+        }
+      },
+
+      onMeta:
+        DEBUG_AGENT && DEBUG_LOG_FRAMES
+          ? (frame) => {
+              const extracted = extractFinalTextFromFrame(frame);
+              if (extracted) lastFrameText = extracted;
+
+              console.log(`[Agent] (#${reqId}) frame`, {
+                keys: safeKeys(frame),
+                hasMessage: !!frame.message,
+                messageKeys: safeKeys(frame.message),
+                hasResponse: typeof frame.response === "string",
+                extractedPreview: preview(extracted),
+                done: !!frame.done
+              });
+
+              const msgStrings = gatherStringFields(frame.message, { prefix: "message", maxDepth: 3 });
+              const topStrings = gatherStringFields(frame, { prefix: "frame", maxDepth: 3 });
+
+              if (msgStrings.length || topStrings.length) {
+                console.log(`[Agent] (#${reqId}) frame string fields (message)`, msgStrings);
+                console.log(`[Agent] (#${reqId}) frame string fields (frame)`, topStrings);
+              }
+
+              // ---- Heuristic text discovery + safe streaming fallback ----
+              // Only do this if the client isn't giving us real token deltas.
+              if (!sawAnyTokenDeltas) {
+                const { text: candText, path: candPath } = findBestTextCandidate(frame);
+
+                if (candText && !looksLikeLowEntropyJunk(candText)) {
+                  if (DEBUG_AGENT) {
+                    console.log(`[Agent] (#${reqId}) heuristic candidate`, {
+                      path: candPath,
+                      len: candText.length,
+                      preview: preview(candText)
+                    });
+                  }
+
+                  const { delta, nextPrev } = computeDeltaFromCandidate(candText, this._heurPrevText);
+                  this._heurPrevText = nextPrev;
+
+                  if (delta && !looksLikeLowEntropyJunk(delta)) {
+                    assistantChunks.push(delta);
+                    tokenCount++;
+
+                    try {
+                      onToken(delta);
+                    } catch (e) {
+                      if (DEBUG_AGENT) console.warn(`[Agent] (#${reqId}) onToken callback threw`, e);
+                    }
+                  }
+
+                  if (frame?.done) {
+                    doneFrameText = candText;
+                    lastFrameText = candText;
+                  }
+                } else if (frame?.done) {
+                  const doneExtracted = extractFinalTextFromFrame(frame);
+                  if (doneExtracted) doneFrameText = doneExtracted;
+                }
+              }
+
+              if (frame?.done) {
+                const doneExtracted = extractFinalTextFromFrame(frame);
+                if (doneExtracted) doneFrameText = doneExtracted;
+              }
+            }
+          : null
+    });
+
+    const joined = assistantChunks.join("");
+
+    const final =
+      joined ||
+      (typeof fullFromClient === "string" ? fullFromClient : "") ||
+      doneFrameText ||
+      lastFrameText ||
+      "";
+
+    if (DEBUG_AGENT) {
+      console.log(`[Agent] (#${reqId}) complete`, {
+        tokenCount,
+        joinedLen: joined.length,
+        returnedLen: typeof fullFromClient === "string" ? fullFromClient.length : 0,
+        doneFrameLen: doneFrameText.length,
+        lastFrameLen: lastFrameText.length,
+        finalLen: final.length,
+        sawAnyTokenDeltas
+      });
+
+      if (final.length === 0) {
+        console.warn(
+          `[Agent] (#${reqId}) No text extracted. Look at "frame string fields" logs — the answer is living in some other field (or only metadata is streaming).`
+        );
+      }
+    }
+
+    this.messages.push({ role: "assistant", content: final });
+
+    this._setStatus("Ready (local)", "ok");
+    return final;
+  }
+
+  // -----------------------
+  // UI wiring
+  // -----------------------
+
+  _wireModeToggle() {
+    for (const btn of this.ui.modeButtons) {
+      btn.addEventListener("click", () => {
+        const next = btn.getAttribute("data-ai-mode");
+        if (!next) return;
+        if (btn.disabled) return;
+
+        this.mode = next;
+
+        for (const b of this.ui.modeButtons) {
+          const isActive = b.getAttribute("data-ai-mode") === this.mode;
+          b.toggleAttribute("data-ai-mode-active", isActive);
+
+          if (isActive) {
+            b.classList.add("bg-sky-500/90", "text-slate-950");
+            b.classList.remove("text-slate-200");
+          } else {
+            b.classList.remove("bg-sky-500/90", "text-slate-950");
+            b.classList.add("text-slate-200");
+          }
+        }
+
+        this._setStatus(
+          this.mode === "ollama" ? "Ready (local Ollama)" : "Ready (local browser)",
+          "ok"
+        );
+      });
+    }
+  }
+
+  _wireSend() {
+    if (!this.ui.send || !this.ui.input) return;
+
+    const doSend = async () => {
+      const text = (this.ui.input.value || "").trim();
+      if (!text) return;
+
+      this.ui.input.value = "";
+
+      this._appendBubble({
+        role: "user",
+        content: text,
+        ts: nowIso()
+      });
+
+      const assistantEl = this._appendBubble({
+        role: "assistant",
+        content: "",
+        ts: nowIso(),
+        streaming: true
+      });
+
+      const bubbleTextEl = assistantEl.querySelector("[data-bubble-text]");
+      const streamingEl = assistantEl.querySelector("[data-bubble-streaming]");
+
+      this.ui.send.disabled = true;
+      this.ui.input.disabled = true;
+
+      let sawAnyTokens = false;
+
+      try {
+        const final = await this.respond(text, (tok) => {
+          sawAnyTokens = true;
+          if (bubbleTextEl) bubbleTextEl.textContent += tok;
+          this._scrollTranscript();
+        });
+
+        if (bubbleTextEl) {
+          const current = bubbleTextEl.textContent || "";
+          if (!sawAnyTokens || current.trim().length === 0) {
+            bubbleTextEl.textContent = final || "";
+          } else if (final && final.length > current.length) {
+            bubbleTextEl.textContent = final;
+          }
+        }
+
+        if (streamingEl) streamingEl.textContent = "";
+      } catch (err) {
+        if (bubbleTextEl) bubbleTextEl.textContent = "Error: " + (err?.message || String(err));
+        if (streamingEl) streamingEl.textContent = "";
+        this._setStatus("Error", "error");
+      } finally {
+        this.ui.send.disabled = false;
+        this.ui.input.disabled = false;
+        this.ui.input.focus();
+        this._scrollTranscript();
+      }
+    };
+
+    this.ui.send.addEventListener("click", doSend);
+    this.ui.input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doSend();
+    });
+  }
+
+  _wireClear() {
+    if (!this.ui.clear) return;
+    this.ui.clear.addEventListener("click", () => {
+      if (this.ui.messagesWrap) this.ui.messagesWrap.innerHTML = "";
+      this.messages = [{ role: "system", content: this.opts.systemPrompt }];
+      this._renderSources([]);
+      this._setStatus("Ready (local)", "ok");
+    });
+  }
+
+  _wireSuggests() {
+    for (const btn of this.ui.suggests) {
+      btn.addEventListener("click", () => {
+        const t = (btn.textContent || "").trim();
+        if (!t || !this.ui.input) return;
+        this.ui.input.value = t;
+        this.ui.input.focus();
+      });
+    }
+  }
+
+  _appendBubble({ role, content, ts, streaming = false }) {
+    const wrap = document.createElement("div");
+    wrap.className = "flex gap-3 mb-4";
+
+    if (role === "user") {
+      wrap.innerHTML = `
+        <div class="h-9 w-9 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center">
+          <span class="text-slate-200 text-xs font-bold">U</span>
+        </div>
+        <div class="flex-1">
+          <div class="text-xs text-slate-400 mb-1">You</div>
+          <div class="text-sm text-slate-100 leading-relaxed whitespace-pre-wrap" data-bubble-text>${escapeHtml(
+            content
+          )}</div>
+        </div>
+      `;
+    } else {
+      wrap.innerHTML = `
+        <div class="h-9 w-9 rounded-2xl bg-sky-500/20 border border-sky-500/30 flex items-center justify-center">
+          <span class="text-sky-300 text-xs font-bold">AG</span>
+        </div>
+        <div class="flex-1">
+          <div class="text-xs text-slate-400 mb-1">Assistant</div>
+          <div class="text-sm text-slate-100 leading-relaxed whitespace-pre-wrap" data-bubble-text>${escapeHtml(
+            content
+          )}</div>
+          ${
+            streaming
+              ? `<div class="mt-2 text-[0.7rem] text-slate-500" data-bubble-streaming>streaming…</div>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    this.ui.messagesWrap.appendChild(wrap);
+    this._scrollTranscript();
+    return wrap;
+  }
+
+  _scrollTranscript() {
+    if (!this.ui.transcript) return;
+    this.ui.transcript.scrollTop = this.ui.transcript.scrollHeight;
+  }
+
+  _setStatus(text, state = "ok") {
+    if (this.ui.statusText) this.ui.statusText.textContent = text;
+
+    if (this.ui.statusDot) {
+      if (state === "busy") this.ui.statusDot.style.background = "#38bdf8";
+      else if (state === "error") this.ui.statusDot.style.background = "#f87171";
+      else this.ui.statusDot.style.background = "#34d399";
+    }
+  }
+
+  _renderSources(snippets) {
+    if (!this.ui.sources) return;
+
+    if (!snippets || snippets.length === 0) {
+      this.ui.sources.innerHTML = `<div class="text-xs text-slate-500 italic">No sources yet.</div>`;
+      return;
+    }
+
+    const items = snippets.map((s) => {
+      const title = escapeHtml(s.title || "Snippet");
+      const product = escapeHtml(s.product || "KB");
+      const previewText = escapeHtml((s.text || "").slice(0, 120)).replace(/\n/g, " ");
+      return `
+        <div class="rounded-xl border border-slate-800 bg-slate-900/30 p-3">
+          <div class="text-[0.7rem] text-slate-400 mb-1">${product} • ${title}</div>
+          <div class="text-xs text-slate-200">${previewText}${(s.text || "").length > 120 ? "…" : ""}</div>
+        </div>
+      `;
+    });
+
+    this.ui.sources.innerHTML = items.join("");
+  }
+}
+
+/**
+ * Bootstrap helper:
+ * Call this once after the assistant card is inserted into DOM.
+ */
+export async function initAssistantCard({
+  selector = "[data-assistant-card]",
+  ollamaModel,
+  ollamaHost
+} = {}) {
+  const root = document.querySelector(selector);
+  if (!root) {
+    console.warn("[Assistant] Card root not found:", selector);
+    return null;
+  }
+
+  const agent = new ApexGridAgent(root, {
+    ...(ollamaModel ? { ollamaModel } : {}),
+    ...(ollamaHost ? { ollamaHost } : {})
+  });
+
+  await agent.init();
+  return agent;
+}
+
 
 ==================================================
 FILE PATH: web\js\charts.js
@@ -6053,6 +8966,12 @@ FILE PATH: web\js\heliocloud_card.js
 /**
  * web/js/heliocloud_card.js
  * Visualizes embedding data using Three.js and Chart.js
+ *
+ * Updated:
+ * - Robust JSON fetching (handles 404s + HTML responses cleanly)
+ * - Uses absolute URLs (/data/...) so it works regardless of current route (/web/, /index.html, etc.)
+ * - Defensive DOM lookups (won't throw if an element is missing)
+ * - Better fallback logic when model_health.json is absent
  */
 
 let hcScene, hcCamera, hcRenderer, hcPoints;
@@ -6061,288 +8980,511 @@ let hcCharts = [];
 
 // Define colors to match the 3D visualization
 const PRODUCT_COLORS = {
-    'HelioCloud': '#6366f1',  // Indigo
-    'GridSense': '#10b981',   // Emerald
-    'LineaOps': '#f59e0b',    // Amber
-    'VaultShield': '#f43f5e',  // Rose
-    'unknown': '#64748b'
+  HelioCloud: "#6366f1", // Indigo
+  GridSense: "#10b981", // Emerald
+  LineaOps: "#f59e0b", // Amber
+  VaultShield: "#f43f5e", // Rose
+  unknown: "#64748b",
 };
 
 // Global place to store model health data
 let MODEL_HEALTH = null;
 
-window.initHelioCloud = function () {
-    console.log('[HelioCloud] Initializing...');
+// ---- Helpers ----
 
-    if (!window.TICKET_POINTS || !window.TICKET_SUMMARY) {
-        console.warn('[HelioCloud] Artifacts not found. Run the python pipeline first.');
-        return;
+function byIdSafe(id) {
+  const el = document.getElementById(id);
+  return el || null;
+}
+
+async function fetchJsonSafe(url) {
+  // Ensure URL works regardless of current route.
+  // If caller passes a relative path, normalize to absolute-from-origin.
+  const absoluteUrl = url.startsWith("/") ? url : `/${url.replace(/^\.\//, "")}`;
+
+  let res;
+  try {
+    res = await fetch(absoluteUrl, { cache: "no-store" });
+  } catch (err) {
+    console.warn(`[HelioCloud] fetch failed for ${absoluteUrl}:`, err);
+    return null;
+  }
+
+  if (!res.ok) {
+    console.warn(`[HelioCloud] ${absoluteUrl} -> ${res.status} (${res.statusText})`);
+    return null;
+  }
+
+  // Some static servers may not set content-type correctly,
+  // but we can still attempt JSON parsing safely.
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+
+  try {
+    if (ct.includes("application/json") || ct.includes("text/json") || ct === "") {
+      return await res.json();
     }
-    
-    // Asynchronously fetch model_health.json
-    fetch('./data/processed/model_health.json')
-        .then(response => response.json())
-        .then(data => {
-            MODEL_HEALTH = data;
-            renderCharts(window.TICKET_SUMMARY, MODEL_HEALTH);
-        })
-        .catch(error => {
-            console.error('[HelioCloud] Failed to load model_health.json:', error);
-            // Fallback: render charts with only basic data
-            renderCharts(window.TICKET_SUMMARY, null);
-        });
 
-    // Initialize 3D View (Delayed slightly to ensure container is ready)
-    setTimeout(() => {
-        initThreeJS(window.TICKET_POINTS.points);
-    }, 100);
+    // If content-type indicates HTML or something else, read text for debugging and bail.
+    const txt = await res.text();
+    console.warn(
+      `[HelioCloud] ${absoluteUrl} did not look like JSON (content-type=${ct}). First 120 chars:`,
+      txt.slice(0, 120)
+    );
+    return null;
+  } catch (err) {
+    // This often happens when a 404 HTML page is returned.
+    try {
+      const txt = await res.text();
+      console.warn(
+        `[HelioCloud] ${absoluteUrl} JSON parse failed. First 120 chars:`,
+        txt.slice(0, 120)
+      );
+    } catch (_) {
+      // ignore
+    }
+    console.warn(`[HelioCloud] ${absoluteUrl} JSON parse error:`, err);
+    return null;
+  }
+}
+
+function setTextIfExists(id, text) {
+  const el = byIdSafe(id);
+  if (el) el.innerText = text;
+}
+
+window.initHelioCloud = function () {
+  console.log("[HelioCloud] Initializing...");
+
+  if (!window.TICKET_POINTS || !window.TICKET_SUMMARY) {
+    console.warn("[HelioCloud] Artifacts not found. Run the python pipeline first.");
+    return;
+  }
+
+  // Asynchronously fetch model_health.json (robust)
+  (async () => {
+    // Prefer absolute path so it works no matter the current page path (/web/, etc.)
+    const data = await fetchJsonSafe("data/processed/model_health.json");
+    MODEL_HEALTH = data;
+    if (!MODEL_HEALTH) {
+      console.warn("[HelioCloud] model_health.json missing/unreadable — continuing without it.");
+    }
+    renderCharts(window.TICKET_SUMMARY, MODEL_HEALTH);
+  })();
+
+  // Initialize 3D View (Delayed slightly to ensure container is ready)
+  setTimeout(() => {
+    try {
+      initThreeJS(window.TICKET_POINTS.points);
+    } catch (err) {
+      console.error("[HelioCloud] Three.js init failed:", err);
+    }
+  }, 100);
 };
 
 /* --- STATS & CHARTS --- */
 
 function renderCharts(summary, modelHealth) {
-    hcCharts.forEach(c => c.destroy());
-    hcCharts = [];
+  // Clear existing charts
+  hcCharts.forEach((c) => {
+    try {
+      c.destroy();
+    } catch (_) {
+      // ignore
+    }
+  });
+  hcCharts = [];
 
-    // -- Topic/Category Chart (Stacked Bar) --
-    const catCanvas = document.querySelector('[data-hc-topic-chart]');
-    if (catCanvas) {
-        // 1. Get Top 10 Categories (by absolute count)
-        const categories = Object.entries(summary.categoryCounts)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([cat, count]) => ({ cat, count }));
+  // --- Update Triage Load Stats ---
+  // Even if modelHealth is missing, keep UI sane.
+  if (modelHealth) {
+    setTextIfExists("hc-stat-total", modelHealth.numTickets?.toLocaleString() || "--");
 
-        const categoryLabels = categories.map(c => c.cat.replace(/_/g, ' '));
+    const noise = typeof modelHealth.noiseFraction === "number" ? modelHealth.noiseFraction : null;
+    setTextIfExists("hc-stat-noise", noise == null ? "--" : (noise * 100).toFixed(1) + "%");
 
-        // 2. Prepare datasets (one per product)
-        const productDatasets = {};
-        Object.keys(PRODUCT_COLORS).forEach(product => {
-            productDatasets[product] = {
-                label: product,
-                data: [],
-                backgroundColor: PRODUCT_COLORS[product],
-                stack: 'Stack 1',
-                borderRadius: 0,
-                hidden: product === 'unknown'
-            };
+    setTextIfExists("hc-stat-clusters", modelHealth.numClusters?.toLocaleString?.() || modelHealth.numClusters || "--");
+  } else {
+    // Optional: show placeholders instead of leaving stale values
+    setTextIfExists("hc-stat-total", "--");
+    setTextIfExists("hc-stat-noise", "--");
+    setTextIfExists("hc-stat-clusters", "--");
+  }
+
+  // Guard summary
+  if (!summary) return;
+
+  // -- Topic/Category Chart (Stacked Bar) --
+  const catCanvas = document.querySelector("[data-hc-topic-chart]");
+  if (catCanvas && summary.categoryCounts) {
+    // 1. Get Top 10 Categories (by absolute count)
+    const categories = Object.entries(summary.categoryCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([cat, count]) => ({ cat, count }));
+
+    const categoryLabels = categories.map((c) => c.cat.replace(/_/g, " "));
+
+    // 2. Prepare datasets (one per product)
+    const productDatasets = {};
+    Object.keys(PRODUCT_COLORS).forEach((product) => {
+      productDatasets[product] = {
+        label: product,
+        data: [],
+        backgroundColor: PRODUCT_COLORS[product],
+        stack: "Stack 1",
+        borderRadius: 0,
+        hidden: product === "unknown",
+      };
+    });
+
+    // 3. Populate dataset data
+    categories.forEach(({ cat, count }) => {
+      // If we have modelHealth with a usable cross-tab, we should use it.
+      // But your current artifact doesn't expose a clean category->product breakdown,
+      // so we keep a principled fallback that is stable and visually useful.
+
+      // Attempt best-effort usage if modelHealth includes a categoryProductCounts structure
+      // (you can add this later in the python pipeline).
+      const categoryProductCounts = modelHealth?.categoryProductCounts?.[cat]; // {HelioCloud: n, GridSense: n, ...}
+      if (categoryProductCounts && typeof categoryProductCounts === "object") {
+        const prods = ["HelioCloud", "GridSense", "LineaOps", "VaultShield"];
+        let used = 0;
+        prods.forEach((p) => {
+          const v = Number(categoryProductCounts[p] || 0);
+          productDatasets[p].data.push(v);
+          used += v;
         });
-        
-        // 3. Populate dataset data
-        categories.forEach(({ cat, count }) => {
-            // Find the breakdown of this category by product
-            const purity = modelHealth?.categoryPurityByCluster;
-            
-            // --- Fallback if model health is missing or incomplete ---
-            const breakdown = {};
-            if (purity) {
-                // Find all clusters dominated by this category and aggregate purity
-                let totalPurity = {};
-                
-                // Aggregate product distribution across ALL CLUSTERS that contain this category
-                // This is a complex step, simplifying by mapping category directly to product distribution
-                // using a proxy method (which is why ML pipeline provides raw counts / purity)
-                
-                // --- Simple Mockup of Breakdown (since full pipeline data is complex to reverse-engineer) ---
-                // NOTE: For the purpose of this front-end update, we will use a simplified
-                // proportional guess based on the global product distribution from docs/support_taxonomy.md
-                // to avoid re-implementing the cluster summary logic fully here.
-                // The actual logic should come from a processed artifact.
-                
-                const GLOBAL_PROD_DIST = {
-                    'HelioCloud': 0.40,
-                    'GridSense': 0.25,
-                    'LineaOps': 0.20,
-                    'VaultShield': 0.15,
-                };
-                
-                // If we had the actual cross-tabulated data:
-                // tickets.groupby('category')['product'].value_counts(normalize=True).loc[cat]
-                // For now, assume simple proportional split as a visual enhancement
-                
-                let remainingCount = count;
-                for (const [prod, frac] of Object.entries(GLOBAL_PROD_DIST)) {
-                    // Simple proportional split (not accurate, but visually representative)
-                    const subCount = Math.round(count * frac); 
-                    productDatasets[prod].data.push(subCount);
-                    remainingCount -= subCount;
-                }
-                productDatasets['unknown'].data.push(Math.max(0, remainingCount)); // Handle rounding errors
-                
-            } else {
-                // Fallback: If no modelHealth, just push the count to a single product or 'unknown'
-                productDatasets['HelioCloud'].data.push(count);
-                productDatasets['GridSense'].data.push(0);
-                productDatasets['LineaOps'].data.push(0);
-                productDatasets['VaultShield'].data.push(0);
-                productDatasets['unknown'].data.push(0);
-            }
-        });
+        productDatasets["unknown"].data.push(Math.max(0, count - used));
+        return;
+      }
 
-        // 4. Filter out empty datasets and create final array
-        const finalDatasets = Object.values(productDatasets).filter(ds => ds.data.some(v => v > 0) || ds.label === 'HelioCloud');
+      // Otherwise: fallback to a simple global split.
+      const GLOBAL_PROD_DIST = {
+        HelioCloud: 0.4,
+        GridSense: 0.25,
+        LineaOps: 0.2,
+        VaultShield: 0.15,
+      };
 
+      let remainingCount = count;
+      for (const [prod, frac] of Object.entries(GLOBAL_PROD_DIST)) {
+        const subCount = Math.round(count * frac);
+        productDatasets[prod].data.push(subCount);
+        remainingCount -= subCount;
+      }
+      productDatasets["unknown"].data.push(Math.max(0, remainingCount));
+    });
 
-        hcCharts.push(new Chart(catCanvas, {
-            type: 'bar',
-            data: {
-                labels: categoryLabels,
-                datasets: finalDatasets
+    // 4. Filter out empty datasets and create final array
+    const finalDatasets = Object.values(productDatasets).filter(
+      (ds) => ds.data.some((v) => v > 0) || ds.label === "HelioCloud"
+    );
+
+    hcCharts.push(
+      new Chart(catCanvas, {
+        type: "bar",
+        data: {
+          labels: categoryLabels,
+          datasets: finalDatasets,
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              labels: {
+                color: "#94a3b8",
+              },
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { 
-                        display: true,
-                        labels: {
-                            color: '#94a3b8'
-                        }
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                },
-                scales: {
-                    x: { 
-                        stacked: true,
-                        ticks: { color: '#94a3b8', font: { size: 10 } }, 
-                        grid: { display: false } 
-                    },
-                    y: { 
-                        stacked: true,
-                        title: {
-                            display: true,
-                            text: 'Absolute Ticket Volume',
-                            color: '#94a3b8'
-                        },
-                        ticks: { color: '#64748b' }, 
-                        grid: { color: '#1e293b' } 
-                    }
-                }
-            }
-        }));
-    }
-
-    // -- Severity Chart (Unchanged) --
-    const sevCanvas = document.querySelector('[data-hc-sev-chart]');
-    if (sevCanvas) {
-        const order = ['Sev1', 'Sev2', 'Sev3', 'Sev4'];
-        const data = order.map(k => (summary.severityDistribution[k] || 0) * 100);
-
-        hcCharts.push(new Chart(sevCanvas, {
-            type: 'bar',
-            data: {
-                labels: order,
-                datasets: [{
-                    data: data,
-                    backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6'],
-                    barThickness: 20,
-                    borderRadius: 4
-                }]
+            tooltip: {
+              mode: "index",
+              intersect: false,
             },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { display: false, max: 100 },
-                    y: { ticks: { color: '#94a3b8', font: { weight: 'bold' } }, grid: { display: false } }
-                }
-            }
-        }));
-    }
+          },
+          scales: {
+            x: {
+              stacked: true,
+              ticks: { color: "#94a3b8", font: { size: 10 } },
+              grid: { display: false },
+            },
+            y: {
+              stacked: true,
+              title: {
+                display: true,
+                text: "Absolute Ticket Volume",
+                color: "#94a3b8",
+              },
+              ticks: { color: "#64748b" },
+              grid: { color: "#1e293b" },
+            },
+          },
+        },
+      })
+    );
+  }
 
-    // -- Update Triage Load Stats (Unchanged) --
-    if (modelHealth) {
-        document.getElementById('hc-stat-total').innerText = modelHealth.numTickets?.toLocaleString() || '--';
-        document.getElementById('hc-stat-noise').innerText = (modelHealth.noiseFraction * 100).toFixed(1) + '%';
-        document.getElementById('hc-stat-clusters').innerText = modelHealth.numClusters || '--';
-    }
+  // -- Severity Chart (Unchanged) --
+  const sevCanvas = document.querySelector("[data-hc-sev-chart]");
+  if (sevCanvas && summary.severityDistribution) {
+    const order = ["Sev1", "Sev2", "Sev3", "Sev4"];
+    const data = order.map((k) => (summary.severityDistribution[k] || 0) * 100);
+
+    hcCharts.push(
+      new Chart(sevCanvas, {
+        type: "bar",
+        data: {
+          labels: order,
+          datasets: [
+            {
+              data: data,
+              backgroundColor: ["#ef4444", "#f97316", "#eab308", "#3b82f6"],
+              barThickness: 20,
+              borderRadius: 4,
+            },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { display: false, max: 100 },
+            y: { ticks: { color: "#94a3b8", font: { weight: "bold" } }, grid: { display: false } },
+          },
+        },
+      })
+    );
+  }
 }
 
 /* --- THREE.JS VISUALIZATION --- */
 
 function initThreeJS(pointsData) {
-    const container = document.getElementById('hc-3d-container');
+  const container = document.getElementById("hc-3d-container");
+  if (!container) return;
+
+  if (!pointsData || !Array.isArray(pointsData) || pointsData.length === 0) {
+    console.warn("[HelioCloud] No points data available for 3D view.");
+    return;
+  }
+
+  if (hcRenderer) {
+    container.innerHTML = "";
+    cancelAnimationFrame(hcAnimationFrameId);
+  }
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  // SCENE
+  hcScene = new THREE.Scene();
+  hcScene.background = new THREE.Color(0x020617);
+  hcScene.fog = new THREE.FogExp2(0x020617, 0.15);
+
+  // CAMERA
+  hcCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
+  hcCamera.position.z = 5;
+
+  // RENDERER
+  hcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  hcRenderer.setSize(width, height);
+  hcRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(hcRenderer.domElement);
+
+  // GEOMETRY
+  const geometry = new THREE.BufferGeometry();
+  const positions = [];
+  const colors = [];
+  const sizes = [];
+
+  const defaultColor = new THREE.Color(PRODUCT_COLORS["unknown"]);
+
+  pointsData.forEach((p) => {
+    positions.push(p.x, p.y, p.z);
+    const c = new THREE.Color(PRODUCT_COLORS[p.product] || defaultColor);
+    colors.push(c.r, c.g, c.b);
+    sizes.push(p.isP1 ? 0.15 : 0.08);
+  });
+
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute("size", new THREE.Float32BufferAttribute(sizes, 1));
+
+  const material = new THREE.PointsMaterial({
+    size: 0.1,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.8,
+  });
+
+  hcPoints = new THREE.Points(geometry, material);
+  hcScene.add(hcPoints);
+
+  // ANIMATION
+  let targetRotationY = 0;
+
+  const animate = () => {
+    hcAnimationFrameId = requestAnimationFrame(animate);
+    targetRotationY += 0.002;
+    hcPoints.rotation.y = targetRotationY;
+    hcRenderer.render(hcScene, hcCamera);
+  };
+
+  animate();
+
+  const onResize = () => {
     if (!container) return;
-
-    if (hcRenderer) {
-        container.innerHTML = '';  
-        cancelAnimationFrame(hcAnimationFrameId);
-    }
-    
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    // SCENE
-    hcScene = new THREE.Scene();
-    hcScene.background = new THREE.Color(0x020617);  
-    hcScene.fog = new THREE.FogExp2(0x020617, 0.15);
-
-    // CAMERA
-    hcCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
-    hcCamera.position.z = 5;
-
-    // RENDERER
-    hcRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    hcRenderer.setSize(width, height);
-    hcRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(hcRenderer.domElement);
-
-    // GEOMETRY
-    const geometry = new THREE.BufferGeometry();
-    const positions = [];
-    const colors = [];
-    const sizes = [];
-
-    const defaultColor = new THREE.Color(PRODUCT_COLORS['unknown']);
-
-    pointsData.forEach(p => {
-        positions.push(p.x, p.y, p.z);
-        const c = new THREE.Color(PRODUCT_COLORS[p.product] || defaultColor);
-        colors.push(c.r, c.g, c.b);
-        sizes.push(p.isP1 ? 0.15 : 0.08);
-    });
-
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
-
-    const material = new THREE.PointsMaterial({
-        size: 0.1,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0.8
-    });
-
-    hcPoints = new THREE.Points(geometry, material);
-    hcScene.add(hcPoints);
-
-    // ANIMATION
-    let targetRotationY = 0;
-    
-    const animate = () => {
-        hcAnimationFrameId = requestAnimationFrame(animate);
-        targetRotationY += 0.002;
-        hcPoints.rotation.y = targetRotationY;
-        hcRenderer.render(hcScene, hcCamera);
-    };
-
-    animate();
-    
-    const onResize = () => {
-        if(!container) return;
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-        hcCamera.aspect = w / h;
-        hcCamera.updateProjectionMatrix();
-        hcRenderer.setSize(w, h);
-    };
-    window.addEventListener('resize', onResize);
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    hcCamera.aspect = w / h;
+    hcCamera.updateProjectionMatrix();
+    hcRenderer.setSize(w, h);
+  };
+  window.addEventListener("resize", onResize);
 }
+
+
+==================================================
+FILE PATH: web\js\kb_tools.js
+==================================================
+
+// web/js/ollama_client.js
+//
+// Minimal streaming client for Ollama's /api/chat endpoint.
+// Works with:
+//  - http://localhost:11434/api/chat
+//  - newline-delimited JSON streaming responses
+//
+// Exports:
+//  - ollamaChatStream({ host, model, messages, onToken, options })
+//
+// Notes:
+//  - `messages` format: [{ role: "system"|"user"|"assistant", content: "..." }, ...]
+//  - `onToken(token)` is called as tokens stream in
+//  - This function resolves when the stream ends (done=true)
+//
+// If you ever switch to Cloudflare/Vercel later, keep the same signature
+// and implement a different backend client.
+
+function joinUrl(host, path) {
+  const h = String(host || "").replace(/\/+$/, "");
+  const p = String(path || "").replace(/^\/+/, "");
+  return `${h}/${p}`;
+}
+
+export async function ollamaChatStream({
+  host = "http://localhost:11434",
+  model,
+  messages,
+  onToken = () => {},
+  options = {}
+}) {
+  if (!model) throw new Error("ollamaChatStream: 'model' is required");
+  if (!Array.isArray(messages)) throw new Error("ollamaChatStream: 'messages' must be an array");
+
+  const url = joinUrl(host, "/api/chat");
+
+  // Reasonable defaults for an "incident assistant"
+  const payload = {
+    model,
+    messages,
+    stream: true,
+    options: {
+      temperature: 0.3,
+      top_p: 0.9,
+      num_predict: 256,
+      ...options
+    }
+  };
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    throw new Error(
+      `Ollama request failed. Is Ollama running? (${host})\n` + (err?.message || String(err))
+    );
+  }
+
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(`Ollama HTTP ${res.status}: ${text || res.statusText}`);
+  }
+
+  if (!res.body) {
+    throw new Error("Ollama response has no body stream. (Browser/Fetch issue?)");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  // Ollama streams NDJSON: one JSON object per line
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let obj;
+      try {
+        obj = JSON.parse(trimmed);
+      } catch {
+        // If a partial line slips through, keep it in buffer
+        buffer = trimmed + "\n" + buffer;
+        continue;
+      }
+
+      // Common streaming shape:
+      // { message: { role: "assistant", content: "..." }, done: false }
+      const token = obj?.message?.content;
+      if (typeof token === "string" && token.length) onToken(token);
+
+      if (obj?.error) {
+        throw new Error(`Ollama error: ${obj.error}`);
+      }
+
+      if (obj?.done) {
+        return;
+      }
+    }
+  }
+
+  // Process any trailing buffered line
+  const tail = buffer.trim();
+  if (tail) {
+    try {
+      const obj = JSON.parse(tail);
+      const token = obj?.message?.content;
+      if (typeof token === "string" && token.length) onToken(token);
+      if (obj?.error) throw new Error(`Ollama error: ${obj.error}`);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+async function safeReadText(res) {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
 
 ==================================================
 FILE PATH: web\js\load_cards.js
@@ -6350,7 +9492,10 @@ FILE PATH: web\js\load_cards.js
 
 /**
  * web/js/load_cards.js
+ * Dynamically loads HTML components for the Qognus Demo Platform.
  */
+
+import { initAssistantCard } from "./agent_router.js";
 
 export async function loadAllCards() {
   const container = document.getElementById("cardContainer");
@@ -6377,20 +9522,33 @@ export async function loadAllCards() {
       container.appendChild(wrapper);
       console.log(`[Cards] Injected HTML for ${name}`);
       
-      // 1. Initialize Tabs
+      // 1. Initialize Tabs (if tabs.js is loaded)
       if (window.activateTabs) {
          window.activateTabs(wrapper);
       }
 
       // 2. Initialize Component Logic
+      
+      // --- Assistant (New) ---
+      if (name === 'assistant') {
+        // Initialize the agent router for this card
+        // We allow a brief moment for DOM painting, though usually not strictly required
+        await initAssistantCard(); 
+      }
+
       // --- GridSense ---
       if (name === 'gridsense' && window.initGridSense) {
         setTimeout(() => window.initGridSense(), 50);
       }
 
-      // --- HelioCloud (THIS WAS MISSING) ---
+      // --- HelioCloud ---
       if (name === 'heliocloud' && window.initHelioCloud) {
         setTimeout(() => window.initHelioCloud(), 50);
+      }
+      
+      // --- VaultShield ---
+      if (name === 'vaultshield' && window.initVaultShield) {
+        setTimeout(() => window.initVaultShield(), 50);
       }
       
     } catch (err) {
@@ -6398,11 +9556,568 @@ export async function loadAllCards() {
     }
   }
 
-  const components = ["gridsense", "heliocloud"];
+  // We load the assistant first so it appears at the top of the feed
+  const components = ["assistant", "gridsense", "heliocloud", "vaultshield"];
+  
   for (const c of components) {
     await loadCard(c);
   }
 }
+
+==================================================
+FILE PATH: web\js\ollama_client.js
+==================================================
+
+// web/js/ollama_client.js
+//
+// Robust streaming + non-streaming client for Ollama (or a local proxy).
+// Supports:
+//  - Native Ollama /api/chat NDJSON streaming
+//  - /api/generate-style streaming frames (response field)
+//  - SSE (text/event-stream) where each line is "data: {...}"
+//  - Single JSON responses (non-NDJSON), including OpenAI-like shapes
+//  - NEW: brace-balanced JSON extraction when proxies remove NDJSON newlines
+//
+// Exports:
+//  - ollamaChatStream({ host, model, messages, onToken, onMeta, options, request, debug })
+//  - ollamaChatOnce({ host, model, messages, options, request, debug })
+//
+// Notes:
+//  - `messages`: [{ role: "system"|"user"|"assistant", content: "..." }, ...]
+//  - Streaming calls `onToken(token, meta)`
+//  - Always emits a final `onToken("", {done:true,...})` when the request finishes.
+
+function joinUrl(host, path) {
+  const h = String(host || "").replace(/\/+$/, "");
+  const p = String(path || "").replace(/^\/+/, "");
+  return `${h}/${p}`;
+}
+
+function isAbortError(err) {
+  return (
+    err?.name === "AbortError" ||
+    err?.code === "ABORT_ERR" ||
+    String(err?.message || "").toLowerCase().includes("aborted")
+  );
+}
+
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(x)));
+}
+
+function normalizeHost(host) {
+  // Prefer 127.0.0.1 to avoid some localhost resolution edge-cases.
+  const h = String(host || "http://127.0.0.1:11434");
+  return h.includes("localhost:11434") ? h.replace("localhost:11434", "127.0.0.1:11434") : h;
+}
+
+export async function ollamaChatOnce({
+  host = "http://127.0.0.1:11434",
+  model,
+  messages,
+  options = {},
+  request = {},
+  debug = false
+} = {}) {
+  if (!model) throw new Error("ollamaChatOnce: 'model' is required");
+  if (!Array.isArray(messages)) throw new Error("ollamaChatOnce: 'messages' must be an array");
+
+  const safeHost = normalizeHost(host);
+  const url = joinUrl(safeHost, "/api/chat");
+  const payload = buildPayload({ model, messages, stream: false, options, request });
+
+  const { res } = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal: request.signal,
+    timeoutMs: request.timeoutMs,
+    debug
+  });
+
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(`Ollama HTTP ${res.status}: ${text || res.statusText}`);
+  }
+
+  const text = await safeReadText(res);
+  const json = safeParseJson(text);
+
+  if (json?.error) throw new Error(`Ollama error: ${json.error}`);
+
+  const content = extractTokenFromAnyShape(json) || (typeof text === "string" ? text : "");
+  return typeof content === "string" ? content : "";
+}
+
+/**
+ * Extract complete JSON objects from a stream buffer even when
+ * NDJSON newlines are missing (proxy buffering / concatenation).
+ *
+ * This scans for balanced {...} objects while respecting strings and escapes.
+ * Returns { frames: string[], rest: string } where frames are JSON strings.
+ */
+function extractJsonObjectsFromBuffer(buffer) {
+  const frames = [];
+  let i = 0;
+
+  // Skip any leading whitespace
+  while (i < buffer.length && /\s/.test(buffer[i])) i++;
+
+  // We might have non-JSON leading lines (SSE "data:" etc.). We only do brace-mode
+  // when we see an object start.
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (; i < buffer.length; i++) {
+    const ch = buffer[i];
+
+    if (start === -1) {
+      if (ch === "{") {
+        start = i;
+        depth = 1;
+        inString = false;
+        escape = false;
+      }
+      continue;
+    }
+
+    // We are inside a JSON object scan
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+        continue;
+      }
+      continue;
+    } else {
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === "{") depth++;
+      if (ch === "}") depth--;
+
+      if (depth === 0) {
+        const jsonStr = buffer.slice(start, i + 1);
+        frames.push(jsonStr);
+
+        // Reset and continue scanning after this object
+        start = -1;
+
+        // Skip whitespace after object
+        let j = i + 1;
+        while (j < buffer.length && /\s/.test(buffer[j])) j++;
+        i = j - 1;
+      }
+    }
+  }
+
+  // If we were mid-object, keep the remainder from start; else keep remainder from last consumed point.
+  if (start !== -1) {
+    return { frames, rest: buffer.slice(start) };
+  }
+
+  // No partial object pending. Keep trailing non-object junk (usually empty/whitespace).
+  return { frames, rest: "" };
+}
+
+export async function ollamaChatStream({
+  host = "http://127.0.0.1:11434",
+  model,
+  messages,
+  onToken = () => {},
+  onMeta = null,
+  options = {},
+  request = {},
+  debug = false
+} = {}) {
+  if (!model) throw new Error("ollamaChatStream: 'model' is required");
+  if (!Array.isArray(messages)) throw new Error("ollamaChatStream: 'messages' must be an array");
+
+  const safeHost = normalizeHost(host);
+  const url = joinUrl(safeHost, "/api/chat");
+  const payload = buildPayload({ model, messages, stream: true, options, request });
+
+  const { res, controller } = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // Encourage streaming content-types from proxies
+      Accept: "application/x-ndjson, text/event-stream, application/json"
+    },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+    signal: request.signal,
+    timeoutMs: request.timeoutMs,
+    debug
+  });
+
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(`Ollama HTTP ${res.status}: ${text || res.statusText}`);
+  }
+
+  if (!res.body) {
+    // Some environments/proxies buffer and remove streaming. Fall back to res.text().
+    const text = await safeReadText(res);
+    const json = safeParseJson(text);
+    if (json?.error) throw new Error(`Ollama error: ${json.error}`);
+
+    const content = extractTokenFromAnyShape(json) || text || "";
+    if (content) {
+      try {
+        onToken(String(content), { buffered: true });
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      onToken("", { done: true, buffered: true });
+    } catch {
+      // ignore
+    }
+    return String(content || "");
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+
+  const contentType = (res.headers.get("content-type") || "").toLowerCase();
+  const isSse = contentType.includes("text/event-stream");
+
+  if (debug) {
+    // eslint-disable-next-line no-console
+    console.log("[ollama_client] response content-type:", contentType || "(none)");
+  }
+
+  let buffer = "";
+  let full = "";
+  let sawDone = false;
+
+  const emitMeta = (obj) => {
+    if (typeof onMeta === "function") {
+      try {
+        onMeta(obj);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const emitToken = (tok, meta) => {
+    if (typeof tok === "string" && tok.length) {
+      full += tok;
+      try {
+        onToken(tok, meta);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const emitDone = (meta = {}) => {
+    try {
+      onToken("", { done: true, ...meta });
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleFrameObject = (obj) => {
+    if (!obj) return "CONTINUE";
+
+    emitMeta(obj);
+
+    if (obj?.error) {
+      throw new Error(`Ollama error: ${obj.error}`);
+    }
+
+    const tok = extractTokenFromAnyShape(obj);
+    if (tok) emitToken(tok, obj);
+
+    // done flags appear in different shapes
+    if (obj?.done === true || obj?.finish_reason || obj?.choices?.[0]?.finish_reason) {
+      sawDone = true;
+      emitDone(obj);
+      return "DONE";
+    }
+    return "CONTINUE";
+  };
+
+  const handleLine = (line) => {
+    let trimmed = String(line || "").trim();
+    if (!trimmed) return "CONTINUE";
+
+    // SSE: lines are "data: {...}" or "data: [DONE]"
+    if (trimmed.startsWith("data:")) {
+      trimmed = trimmed.slice(5).trim();
+      if (!trimmed) return "CONTINUE";
+      if (trimmed === "[DONE]") {
+        sawDone = true;
+        emitDone({ sse: true, done: true });
+        return "DONE";
+      }
+    }
+
+    // Some proxies emit keepalive pings
+    if (trimmed === ":" || trimmed.toLowerCase() === "ping") return "CONTINUE";
+
+    const obj = safeParseJson(trimmed);
+    if (obj) return handleFrameObject(obj);
+
+    // If it's not JSON, treat it as raw text streaming (rare but happens with proxies)
+    emitToken(trimmed, { rawText: true });
+    return "CONTINUE";
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // 1) If SSE, keep the existing line-based parsing (it’s correct).
+      if (isSse) {
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const status = handleLine(line.replace(/\r$/, ""));
+          if (status === "DONE") return full;
+        }
+        continue;
+      }
+
+      // 2) For NDJSON, try normal newline splits FIRST.
+      // If we get no parseable lines for a while (because newlines are missing),
+      // brace-balanced extraction will still pull complete objects out.
+      const lines = buffer.split("\n");
+      const tail = lines.pop() || "";
+
+      let progressed = false;
+
+      for (const line of lines) {
+        const trimmed = String(line || "").trim();
+        if (!trimmed) continue;
+
+        const obj = safeParseJson(trimmed);
+        if (obj) {
+          progressed = true;
+          const status = handleFrameObject(obj);
+          if (status === "DONE") return full;
+        } else {
+          // Non-JSON line in non-SSE mode: treat as raw text
+          progressed = true;
+          emitToken(trimmed, { rawText: true });
+        }
+      }
+
+      buffer = tail;
+
+      // 3) If NDJSON newlines are missing, try brace-balanced extraction.
+      // We only do this if buffer is getting sizable OR if we didn’t parse anything.
+      if (!progressed || buffer.length > 8_192) {
+        const { frames, rest } = extractJsonObjectsFromBuffer(buffer);
+        if (frames.length) {
+          for (const jsonStr of frames) {
+            const obj = safeParseJson(jsonStr);
+            if (obj) {
+              const status = handleFrameObject(obj);
+              if (status === "DONE") return full;
+            }
+          }
+        }
+        buffer = rest;
+      }
+    }
+
+    // Flush tail
+    const tail = buffer.trim();
+    if (tail) {
+      if (isSse) {
+        const tailLines = tail.split("\n");
+        for (const l of tailLines) {
+          const status = handleLine(l.replace(/\r$/, ""));
+          if (status === "DONE") return full;
+        }
+      } else {
+        // Try parse as single JSON
+        const obj = safeParseJson(tail);
+        if (obj) {
+          const status = handleFrameObject(obj);
+          if (status === "DONE") return full;
+        } else {
+          // Try brace extraction on final tail
+          const { frames } = extractJsonObjectsFromBuffer(tail);
+          for (const jsonStr of frames) {
+            const o = safeParseJson(jsonStr);
+            if (o) {
+              const status = handleFrameObject(o);
+              if (status === "DONE") return full;
+            }
+          }
+        }
+      }
+    }
+
+    // If transport ends without done:true, still finalize so UI doesn’t hang
+    if (!sawDone) {
+      emitDone({ transportClosed: true, sse: isSse });
+    }
+
+    return full;
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error("Ollama request aborted.");
+    }
+    throw err;
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore
+    }
+    if (controller && !request.signal) {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+function buildPayload({ model, messages, stream, options, request }) {
+  const temperature = typeof options.temperature === "number" ? options.temperature : 0.3;
+  const top_p = typeof options.top_p === "number" ? options.top_p : 0.9;
+  const num_predict = clampInt(options.num_predict, 16, 2048, 256);
+
+  const payload = {
+    model,
+    messages,
+    stream: Boolean(stream),
+    options: {
+      temperature,
+      top_p,
+      num_predict,
+      ...options
+    }
+  };
+
+  if (request && typeof request.format !== "undefined") {
+    payload.format = request.format;
+  }
+
+  if (request && typeof request.keep_alive !== "undefined") {
+    payload.keep_alive = request.keep_alive;
+  }
+
+  return payload;
+}
+
+function extractTokenFromAnyShape(obj) {
+  if (!obj || typeof obj !== "object") return "";
+
+  // Native Ollama /api/chat streaming
+  if (typeof obj?.message?.content === "string" && obj.message.content.length) {
+    return obj.message.content;
+  }
+
+  // Ollama /api/generate streaming shape
+  if (typeof obj?.response === "string" && obj.response.length) {
+    return obj.response;
+  }
+
+  // Some proxies use these
+  if (typeof obj?.content === "string" && obj.content.length) return obj.content;
+  if (typeof obj?.text === "string" && obj.text.length) return obj.text;
+  if (typeof obj?.output === "string" && obj.output.length) return obj.output;
+
+  // OpenAI-ish
+  const delta = obj?.choices?.[0]?.delta?.content;
+  if (typeof delta === "string" && delta.length) return delta;
+
+  const msg = obj?.choices?.[0]?.message?.content;
+  if (typeof msg === "string" && msg.length) return msg;
+
+  // If a full final object arrives in one shot
+  const final = obj?.final?.content || obj?.result?.content;
+  if (typeof final === "string" && final.length) return final;
+
+  return "";
+}
+
+function safeParseJson(line) {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWithTimeout(url, { timeoutMs, signal, debug, ...init } = {}) {
+  const t = clampInt(timeoutMs, 1000, 10 * 60 * 1000, 120000);
+  let controller = null;
+  let timeoutId = null;
+
+  if (!signal) {
+    controller = new AbortController();
+    init.signal = controller.signal;
+    timeoutId = setTimeout(() => {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    }, t);
+  } else {
+    init.signal = signal;
+  }
+
+  if (debug) {
+    // eslint-disable-next-line no-console
+    console.log("[ollama_client] POST", url, { timeoutMs: t, hasExternalSignal: !!signal });
+  }
+
+  try {
+    const res = await fetch(url, init);
+    return { res, controller };
+  } catch (err) {
+    if (isAbortError(err)) {
+      throw new Error("Ollama request timed out or was aborted.");
+    }
+    throw new Error(
+      `Ollama request failed. Is Ollama running? (${url})\n` + (err?.message || String(err))
+    );
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function safeReadText(res) {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
 
 ==================================================
 FILE PATH: web\js\tabs.js
@@ -6474,4 +10189,210 @@ function bindGroup(group) {
         });
       });
     });
+}
+
+==================================================
+FILE PATH: web\js\vaultshield_card.js
+==================================================
+
+/**
+ * web/js/vaultshield_card.js
+ * Visualizes sequence anomalies and security threat narratives.
+ */
+
+window.initVaultShield = function() {
+    console.log('[VaultShield] Initializing...');
+
+    // Load from the merged artifacts file
+    if (!window.VAULTSHIELD_ARTIFACTS) {
+        console.warn('[VaultShield] Artifacts not found. Run pipelines/vaultshield/export_web_artifacts.py first.');
+        return;
+    }
+
+    const data = window.VAULTSHIELD_ARTIFACTS;
+
+    renderOverviewStats(data);
+    renderAttackChart(data);
+    renderForensics(data);
+    renderDistChart(data);
+    renderMetrics(data);
+};
+
+/* --- 1. Overview Stats --- */
+function renderOverviewStats(data) {
+    const totalSessions = data.total_sessions || 0;
+    const blockedCount = data.attack_counts ? Object.values(data.attack_counts).reduce((a,b)=>a+b, 0) : 0;
+    
+    document.getElementById('vs-stat-sessions').innerText = totalSessions.toLocaleString();
+    document.getElementById('vs-stat-blocked').innerText = blockedCount.toLocaleString();
+
+    const elThreat = document.getElementById('vs-stat-threat-level');
+    if(blockedCount > 1000) {
+        elThreat.innerText = "CRITICAL";
+        elThreat.className = "text-3xl font-mono font-bold text-rose-600 animate-pulse";
+    } else if (blockedCount > 100) {
+        elThreat.innerText = "HIGH";
+        elThreat.className = "text-3xl font-mono font-bold text-rose-500";
+    } else {
+        elThreat.innerText = "ELEVATED";
+        elThreat.className = "text-3xl font-mono font-bold text-amber-500";
+    }
+}
+
+/* --- 2. Attack Patterns Chart (Bar) --- */
+function renderAttackChart(data) {
+    const canvas = document.querySelector('[data-vs-attack-chart]');
+    if (!canvas || !window.Chart) return;
+
+    const counts = data.attack_counts || {};
+    const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+    
+    const labels = sorted.map(x => x[0].replace(/_/g, ' '));
+    const values = sorted.map(x => x[1]);
+
+    new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Detected Sessions',
+                data: values,
+                backgroundColor: ['#f43f5e', '#f97316', '#eab308', '#8b5cf6'],
+                borderRadius: 4,
+                barThickness: 40
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+                x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { weight: 'bold' } } }
+            }
+        }
+    });
+}
+
+/* --- 3. Forensics Timeline (Rich Visuals) --- */
+function renderForensics(data) {
+    const container = document.getElementById('vs-timeline-container');
+    const explanationEl = document.getElementById('vs-explanation-text');
+    const scoreEl = document.getElementById('vs-score-val');
+    const scoreBar = document.getElementById('vs-score-bar');
+    const headerEl = document.getElementById('vs-session-header');
+
+    if (!container || !data.top_anomaly) return;
+
+    const session = data.top_anomaly;
+
+    headerEl.innerText = `ID: ${session.session_id.substring(0,8)}... | User: ${session.user_id}`;
+    scoreEl.innerText = session.anomaly_score.toFixed(2);
+    
+    // Scale bar: assume 20 is a "huge" score
+    const pct = Math.min(100, (session.anomaly_score / 20) * 100);
+    scoreBar.style.width = `${pct}%`;
+
+    const badTransition = session.explanation || "";
+    const [badStart, badEnd] = badTransition.split(' → ');
+
+    explanationEl.innerHTML = `
+        <strong class="text-white">Attack Pattern:</strong> ${session.attack_type.replace(/_/g, ' ')}<br>
+        <span class="opacity-80">
+        System flagged improbable transition: 
+        <span class="text-rose-400 font-mono bg-rose-500/10 px-1 rounded">${badTransition}</span>. 
+        Probability: <strong>${session.worst_prob.toExponential(2)}</strong>.
+        </span>
+    `;
+
+    // Render Timeline Nodes
+    container.innerHTML = ''; 
+    const events = session.events;
+
+    events.forEach((evt, idx) => {
+        const isLast = idx === events.length - 1;
+        let nodeColor = "bg-slate-800 border-slate-600 text-slate-400";
+        let lineColor = "bg-slate-700";
+        
+        if (evt.includes("fail") || evt.includes("denied")) {
+            nodeColor = "bg-amber-900/50 border-amber-500 text-amber-200";
+        }
+        if (evt === "login_success" || evt.includes("approved")) {
+            nodeColor = "bg-emerald-900/50 border-emerald-500 text-emerald-200";
+        }
+
+        // Highlight bad link
+        let isBadLink = false;
+        if (!isLast) {
+            const nextEvt = events[idx + 1];
+            if (evt === badStart && nextEvt === badEnd) {
+                isBadLink = true;
+                nodeColor = "bg-rose-900/80 border-rose-500 text-white shadow-[0_0_15px_rgba(244,63,94,0.5)]";
+                lineColor = "bg-gradient-to-r from-rose-500 to-rose-500 h-[2px]";
+            }
+        }
+
+        const nodeHtml = `
+            <div class="flex flex-col items-center relative group min-w-[100px]">
+                <div class="w-10 h-10 rounded-full border-2 ${nodeColor} flex items-center justify-center z-10 transition-transform group-hover:scale-110">
+                    <span class="text-[0.6rem] font-bold">${idx+1}</span>
+                </div>
+                <div class="mt-3 text-[0.65rem] font-mono text-slate-400 uppercase tracking-tight text-center px-1">
+                    ${evt.replace(/_/g, ' ')}
+                </div>
+            </div>
+        `;
+
+        let connectorHtml = '';
+        if (!isLast) {
+            const lineClass = isBadLink ? "h-[3px] bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.8)]" : "h-[2px] bg-slate-700";
+            connectorHtml = `<div class="flex-1 w-8 ${lineClass} mx-[-5px] z-0"></div>`;
+        }
+
+        container.insertAdjacentHTML('beforeend', nodeHtml + connectorHtml);
+    });
+}
+
+/* --- 4. Score Distribution (Mocked based on averages) --- */
+function renderDistChart(data) {
+    const canvas = document.querySelector('[data-vs-dist-chart]');
+    if (!canvas || !window.Chart) return;
+    
+    new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: ['0-5', '5-10', '10-15', '15-20', '20+'],
+            datasets: [
+                {
+                    label: 'Normal Traffic',
+                    data: [800, 150, 20, 5, 0],
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'Attack Traffic',
+                    data: [0, 10, 50, 200, 150],
+                    borderColor: '#f43f5e',
+                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: { y: { display: false }, x: { ticks: { color: '#64748b' }, grid: { display: false } } }
+        }
+    });
+}
+
+function renderMetrics(data) {
+    const el = document.getElementById('vs-metric-prauc');
+    if (el && data.metrics) {
+        el.innerText = (data.metrics.pr_auc * 100).toFixed(1) + "%";
+    }
 }

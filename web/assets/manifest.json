@@ -1,0 +1,10 @@
+{
+  "platform": "ApexGrid",
+  "description": "Local-first demo platform showcasing AI/ML incident analysis across infrastructure, security, and observability products.",
+  "products": [
+    "gridsense",
+    "vaultshield",
+    "heliocloud",
+    "lineaops"
+  ]
+}

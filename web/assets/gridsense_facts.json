@@ -1,0 +1,66 @@
+{
+  "product": "GridSense",
+  "slug": "gridsense",
+  "tagline": "SCADA-grade monitoring and anomaly detection for electrical substations and grid assets.",
+  "capabilities": [
+    "Multivariate time-series anomaly detection across load, voltage, frequency, and thermal signals",
+    "Substation-level health scoring with temporal context",
+    "Early warning detection for voltage sag, thermal drift, and abnormal load ramps",
+    "Fleet-wide comparison and regime clustering across substations",
+    "Grace-period-aware alerting to reduce false positives during transient events",
+    "Root-cause hints via correlated signal deviation analysis"
+  ],
+  "metrics": {
+    "anomaly_precision_grace": 0.88,
+    "anomaly_recall_grace": 0.91,
+    "false_positive_rate": 0.04,
+    "mean_time_to_detect_minutes": 6.5,
+    "p95_detection_latency_minutes": 12.0
+  },
+  "runbooks": [
+    {
+      "title": "Voltage sag detected",
+      "steps": [
+        "Confirm whether the event coincides with scheduled switching or maintenance windows",
+        "Compare phase voltages across adjacent feeders to rule out sensor-level issues",
+        "Check recent load ramp rates for abrupt changes exceeding historical baselines",
+        "Inspect transformer oil temperature for correlated thermal stress",
+        "If sustained beyond 10 minutes, escalate to field operations for inspection"
+      ]
+    },
+    {
+      "title": "Abnormal load ramp",
+      "steps": [
+        "Validate load change against historical diurnal patterns for the substation",
+        "Cross-check upstream generation and downstream demand signals",
+        "Inspect frequency stability during the ramp period",
+        "Assess whether the anomaly propagates to peer substations",
+        "Classify as transient vs structural before triggering customer-facing alerts"
+      ]
+    },
+    {
+      "title": "Thermal drift anomaly",
+      "steps": [
+        "Verify oil temperature sensor calibration and recent maintenance logs",
+        "Check ambient temperature conditions and cooling system status",
+        "Correlate thermal readings with sustained load increases",
+        "Review historical thermal trends for seasonal baseline shifts",
+        "Escalate if temperature exceeds safe operating thresholds"
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "How does GridSense distinguish between transient events and true anomalies?",
+      "a": "GridSense applies temporal context and grace-period-aware scoring, allowing short-lived transients (such as switching operations) to decay without triggering alerts unless deviations persist or propagate across correlated signals."
+    },
+    {
+      "q": "Is GridSense intended to replace SCADA systems?",
+      "a": "No. GridSense complements existing SCADA infrastructure by providing higher-level analytics, anomaly detection, and fleet-wide insight without interfering with control systems."
+    },
+    {
+      "q": "What data resolution does GridSense require?",
+      "a": "GridSense supports input resolutions from sub-minute telemetry to 5-minute aggregates, with detection sensitivity adapting to the available sampling rate."
+    }
+  ]
+}
