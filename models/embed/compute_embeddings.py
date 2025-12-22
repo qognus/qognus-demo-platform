@@ -16,6 +16,7 @@ Interruption (Ctrl+C) is perfectly safe.
 
 import json
 import time
+import sys
 import pathlib
 import requests
 import numpy as np
@@ -23,13 +24,29 @@ import pandas as pd
 from tqdm import tqdm
 
 # ------------------------------------------------------------
-# CONFIG
+# SETUP: Import from Central Config
 # ------------------------------------------------------------
 
-DATA_DIR = pathlib.Path("data")
-RAW_TICKETS = DATA_DIR / "raw" / "apexgrid_tickets.jsonl"
+# Add project root to sys.path so we can import config.py
+# (We assume this script is located at: models/embed/compute_embeddings.py)
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
-PROCESSED_DIR = DATA_DIR / "processed"
+try:
+    from config import RAW_DIR, PROCESSED_DIR, OLLAMA_HOST, MODELS
+except ImportError:
+    print("❌ Error: Could not import 'config.py'.")
+    print(f"   Make sure 'config.py' exists in the project root: {PROJECT_ROOT}")
+    sys.exit(1)
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+RAW_TICKETS = RAW_DIR / "apexgrid_tickets.jsonl"
+
+# Ensure processed directory exists
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 # Final Artifacts
@@ -41,8 +58,9 @@ OUT_IDS = PROCESSED_DIR / "embedding_ids.json"
 # Intermediate Cache (Append-only JSONL)
 CACHE_FILE = PROCESSED_DIR / "embeddings_cache.jsonl"
 
-OLLAMA_URL = "http://localhost:11434/api/embeddings"
-EMBED_MODEL = "mxbai-embed-large"    # or "nomic-embed-text"
+# Ollama Settings
+OLLAMA_URL = f"{OLLAMA_HOST}/api/embeddings"
+EMBED_MODEL = MODELS["embed"]
 
 
 # ------------------------------------------------------------
@@ -99,22 +117,16 @@ def normalize_ticket(t: dict) -> dict:
 
 def get_embedding_ollama(text: str, model: str = EMBED_MODEL) -> list[float]:
     """Call Ollama embedding endpoint."""
+    payload = {"model": model, "prompt": text}
+    
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": model, "prompt": text},
-            timeout=60
-        )
+        resp = requests.post(OLLAMA_URL, json=payload, timeout=60)
         resp.raise_for_status()
         return resp.json()["embedding"]
     except Exception as e:
         print(f"[WARN] Embedding failed: {e}. Retrying in 2 seconds...")
         time.sleep(2)
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": model, "prompt": text},
-            timeout=60
-        )
+        resp = requests.post(OLLAMA_URL, json=payload, timeout=60)
         resp.raise_for_status()
         return resp.json()["embedding"]
 
@@ -161,6 +173,8 @@ def main():
     print("==============================================")
     print(" Qognus Demo Platform — Resumable Embeddings")
     print("==============================================")
+    print(f"Model: {EMBED_MODEL}")
+    print(f"Config Source: {PROJECT_ROOT}/config.py")
     
     if not RAW_TICKETS.exists():
         raise FileNotFoundError(f"Missing {RAW_TICKETS}")

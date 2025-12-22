@@ -2,60 +2,50 @@
 anomaly_model.py
 Qognus Demo Platform — ApexGrid / GridSense
 -------------------------------------------
-
-IMPROVED MODEL: Per-Substation Scaling + PCA
---------------------------------------------
-Problem: Global scaling allows large substations (100MW) to dominate the 
-anomaly threshold, hiding faults in small substations (50MW).
-
-Solution: We standardize (Z-score) each substation INDIVIDUALLY before 
-feeding them to the global PCA. This aligns all scores to a unified 0-1 range.
+Refactored to use central config and export JSON.
 """
 
 import json
+import sys
 import pathlib
-from typing import List, Dict, Any, Tuple
-
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 # ------------------------------------------------------------
-# CONFIG
+# SETUP: Import from Central Config
 # ------------------------------------------------------------
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
-ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
-RAW_DIR = ROOT_DIR / "data" / "raw"
-PROC_DIR = ROOT_DIR / "data" / "processed"
-WEB_DATA_DIR = ROOT_DIR / "web" / "data"
+try:
+    from config import RAW_DIR, PROCESSED_DIR, WEB_DATA_DIR, RANDOM_SEED
+except ImportError:
+    print("❌ Error: Could not import 'config.py'.")
+    sys.exit(1)
 
-PROC_DIR.mkdir(parents=True, exist_ok=True)
-WEB_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
 IN_PARQUET = RAW_DIR / "gridsense_timeseries.parquet"
-OUT_JS = WEB_DATA_DIR / "gridsense_timeseries_artifacts.js"
+OUT_JSON = WEB_DATA_DIR / "gridsense_timeseries.json" # <--- JSON Output
 
 WINDOW = 6  
 FEATURE_COLS = ["load_mw", "voltage_kv", "current_a", "freq_hz", "oil_temp_c"]
 
 # ------------------------------------------------------------
-# HELPERS
+# LOGIC
 # ------------------------------------------------------------
 
 def build_features_and_scale(df, window, feature_cols):
-    """
-    Builds windows AND scales each substation individually.
-    Returns:
-      - window_df: Metadata dataframe
-      - X_scaled: The feature matrix ready for PCA
-    """
+    """Builds windows AND scales each substation individually."""
     df = df.copy().sort_values(["substation_id", "timestamp"])
     
     all_rows = []
     all_feats = []
 
-    # Process per substation
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
         values = grp[feature_cols].to_numpy()
@@ -74,11 +64,10 @@ def build_features_and_scale(df, window, feature_cols):
             window_vals = values[start:end, :]
 
             # Features: Current Value + Volatility + Trend
-            current = window_vals[-1]             
-            std = np.std(window_vals, axis=0)     
+            current = window_vals[-1]              
+            std = np.std(window_vals, axis=0)      
             delta = window_vals[-1] - window_vals[0]
             
-            # 15 dimensions
             feat_vector = np.concatenate([current, std, delta]) 
             sub_feats.append(feat_vector)
 
@@ -96,9 +85,7 @@ def build_features_and_scale(df, window, feature_cols):
 
         if not sub_feats: continue
 
-        # --- PER-SUBSTATION SCALING ---
-        # Normalize this substation to Mean=0, Std=1
-        # This ensures a 100MW station looks the same as a 10MW station to PCA
+        # Per-substation Z-Score Scaling
         scaler = StandardScaler()
         sub_feats_scaled = scaler.fit_transform(np.array(sub_feats))
         
@@ -106,8 +93,7 @@ def build_features_and_scale(df, window, feature_cols):
         all_rows.extend(sub_rows)
 
     window_df = pd.DataFrame(all_rows)
-    # Stack all substations together for global PCA training
-    X_scaled = np.vstack(all_feats)
+    X_scaled = np.vstack(all_feats) if all_feats else np.empty((0, len(FEATURE_COLS)*3))
     
     return window_df, X_scaled
 
@@ -143,13 +129,15 @@ def evaluate_soft_metrics(y_true, y_pred, tolerance=3):
         "contamination": float(round(np.mean(y_pred), 3))
     }
 
-def export_js_artifact(df, metrics, out_path, max_points=1000):
+def export_json_artifact(df, metrics, out_path, max_points=1000):
+    """Exports pure JSON for the frontend component."""
     df = df.reset_index().copy()
     df["timestamp_iso"] = df["timestamp"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     series_records = []
     
     for substation_id, grp in df.groupby("substation_id"):
         grp = grp.sort_values("timestamp")
+        # Downsample for web performance if needed
         if len(grp) > max_points:
             idx = np.linspace(0, len(grp) - 1, max_points).astype(int)
             grp = grp.iloc[idx]
@@ -164,8 +152,10 @@ def export_js_artifact(df, metrics, out_path, max_points=1000):
             })
 
     payload = {"summary": metrics, "series": series_records}
-    js_content = "window.GRIDSENSE_TIMESERIES = " + json.dumps(payload, indent=2) + ";\n"
-    out_path.write_text(js_content, encoding="utf-8")
+    
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f)
+    print(f" -> Saved artifact: {out_path}")
 
 # ------------------------------------------------------------
 # MAIN
@@ -175,53 +165,45 @@ def main():
     print("===================================================")
     print(" GridSense PCA (Per-Substation Scaling) ")
     print("===================================================")
+    print(f"Config Source: {PROJECT_ROOT}/config.py")
 
     if not IN_PARQUET.exists():
-        raise FileNotFoundError(f"Input parquet not found.")
+        print(f"⚠️  Input {IN_PARQUET} not found. Running generator...")
+        # Optional: Call generator if missing (requires import)
+        import subprocess
+        gen_script = PROJECT_ROOT / "synthetic" / "generate_gridsense_timeseries.py"
+        subprocess.run([sys.executable, str(gen_script)], check=True)
 
     df_full = pd.read_parquet(IN_PARQUET)
     df_full = df_full.sort_values(["substation_id", "timestamp"])
 
     print("Building and scaling features per substation...")
-    # NOTE: X_scaled is already standardized per-substation here
     window_df, X_scaled = build_features_and_scale(df_full.reset_index(), WINDOW, FEATURE_COLS)
 
-    # 1. PCA Training (Global Physics Model)
     print("Training Global PCA...")
-    pca = PCA(n_components=0.85) # Keep 85% variance (Physics), discard 15% (Noise)
+    pca = PCA(n_components=0.85) 
     pca.fit(X_scaled)
-    print(f"PCA Components: {pca.n_components_}")
     
-    # 2. Score (Reconstruction Error)
     print("Scoring...")
     X_recon = pca.inverse_transform(pca.transform(X_scaled))
     diff = X_scaled - X_recon
     mse = np.mean(diff ** 2, axis=1)
     
-    # 3. Dynamic Thresholding
-    # Since we normalized everything, 1.0 MSE is a "Standard Unit of Brokenness"
-    # We don't need complex percentiles anymore.
-    # Sigma rule on the MSE distribution
+    # Thresholding (2 Sigma)
     mu = np.mean(mse)
     sigma = np.std(mse)
-    
-    # Threshold: 2 Standard Deviations above mean error
     threshold = mu + (2.0 * sigma)
-    print(f"Threshold (MSE): {threshold:.4f}")
     
     preds = (mse > threshold).astype(int)
-    
-    # Normalize score visually: 0.0 to ~1.0 (where 0.5 is threshold)
-    scores_viz = mse / (threshold * 2.0)
-    scores_viz = np.clip(scores_viz, 0, 1.0)
+    scores_viz = np.clip(mse / (threshold * 2.0), 0, 1.0) # Normalize for UI
 
-    # 4. Smoothing
+    # Smoothing
     preds_smooth = pd.Series(preds).rolling(window=3, center=False).max().fillna(0).astype(int).values
 
     window_df["anomaly_score"] = scores_viz
     window_df["predicted_anomaly"] = preds_smooth
 
-    # 5. Evaluate
+    # Evaluate
     split_idx = int(len(window_df) * 0.8)
     metrics = evaluate_soft_metrics(
         window_df["window_label"].iloc[split_idx:].to_numpy(), 
@@ -230,14 +212,14 @@ def main():
     )
     print("Metrics:", metrics)
 
-    # Export
+    # Merge results back to timestamps
     df_out = df_full.reset_index().merge(
         window_df[["substation_id", "timestamp", "anomaly_score", "predicted_anomaly"]],
         on=["substation_id", "timestamp"],
         how="left"
     ).fillna(0)
 
-    export_js_artifact(df_out, metrics, OUT_JS)
+    export_json_artifact(df_out, metrics, OUT_JSON)
     print("Done.")
 
 if __name__ == "__main__":
