@@ -37,10 +37,7 @@
   <style>
     body { background-color: #020617; scroll-behavior: smooth; }
     .fade-in { animation: fadeIn 0.5s ease-out forwards; }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
@@ -48,8 +45,11 @@
   </style>
 
   <script type="module">
+    import './js/components/AssistantCard.js'; // <--- NEW (Copilot)
     import './js/components/HelioCloudCard.js';
     import './js/components/GridSenseCard.js';
+    import './js/components/VaultShieldCard.js';
+    import './js/components/LineaOpsCard.js';
   </script>
 
 </head>
@@ -92,15 +92,18 @@
   </section>
 
   <section id="cards" class="max-w-7xl mx-auto px-6 pb-32">
-    <div class="flex items-center gap-4 mb-10 border-b border-slate-800 pb-4 fade-in" style="animation-delay: 0.2s;">
+    <assistant-card></assistant-card>
+
+    <div class="flex items-center gap-4 mt-16 mb-10 border-b border-slate-800 pb-4 fade-in" style="animation-delay: 0.2s;">
         <h2 class="text-2xl font-semibold text-white">Active Product Systems</h2>
         <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">All Systems Operational</span>
     </div>
     
     <div id="cardContainer" class="space-y-16">
         <heliocloud-card data-url="./data/model_health.json"></heliocloud-card>
-        
         <gridsense-card data-url="./data/gridsense_timeseries.json"></gridsense-card>
+        <vaultshield-card data-url="./data/vaultshield_artifacts.json"></vaultshield-card>
+        <lineaops-card data-url="./data/lineaops_data.json"></lineaops-card>
     </div>
   </section>
 

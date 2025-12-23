@@ -7,7 +7,6 @@ const verticalLinePlugin = {
     if (!chart.chartArea || !chart.scales.x) return;
     const { ctx, chartArea: { top, bottom, right, left }, scales: { x } } = chart;
     
-    // In Chart.js v4, options are passed directly if configured in plugins section
     const lines = options.lines || [];
     if (lines.length === 0) return;
 
@@ -20,12 +19,9 @@ const verticalLinePlugin = {
        const { index, color, text } = lineItem;
        const meta = chart.getDatasetMeta(0);
        
-       // Safety check: ensure index is within current view
        if (index < 0 || index >= meta.data.length) return;
 
        const xPos = x.getPixelForValue(index);
-       
-       // Only draw if within chart area
        if (xPos < left || xPos > right) return;
 
        // Draw Line
@@ -40,7 +36,6 @@ const verticalLinePlugin = {
        const textWidth = ctx.measureText(text).width;
        const padding = 6;
 
-       // Prevent label clipping on right edge
        if (xPos + textWidth + padding > right) {
            ctx.textAlign = 'right';
            ctx.fillText(text, xPos - padding, top + 12);
@@ -115,7 +110,7 @@ export class GridSenseCard extends BaseCard {
                  <h4 class="text-[0.65rem] font-bold text-slate-400 uppercase tracking-wider">Active Fleet</h4>
                  <span id="gs-count" class="text-[0.6rem] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">--</span>
                </div>
-               <div id="gs-substation-list" class="grid grid-cols-4 sm:grid-cols-8 md:grid-cols-2 gap-1.5 overflow-y-auto pr-1 max-h-[350px]">
+               <div id="gs-substation-list" class="grid grid-cols-4 sm:grid-cols-8 md:grid-cols-2 gap-1.5 overflow-y-auto overflow-x-hidden pr-1 max-h-[350px]">
                  </div>
              </div>
           </div>

@@ -32,7 +32,17 @@ STAGES = [
         "desc": "PCA-based anomaly detection on IoT timeseries."
     },
     {
-        "name": "5. Web Artifact Export",
+        "name": "5. VaultShield Security Analytics",
+        "path": "models/vaultshield_analytics/vaultshield_pipeline.py",
+        "desc": "Markov Chain analysis of auth logs."
+    },
+    {
+        "name": "6. LineaOps Manufacturing",
+        "path": "models/lineaops_manufacturing/lineaops_pipeline.py",
+        "desc": "Robotics telemetry and OEE simulation."
+    },
+    {
+        "name": "7. Web Artifact Export",
         "path": "models/eval/export_web_artifacts.py",
         "desc": "Generates JS files for the frontend."
     }
