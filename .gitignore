@@ -211,4 +211,17 @@ __marimo__/
 
 # Project Specific - Archives & Generated Data
 _archive/
-web/data/
+
+
+# --- Node.js & Frontend (NEW) ---
+node_modules/
+npm-debug.log
+.npm/
+
+# --- Cloudflare & System ---
+cloudflared.exe
+*.log
+
+# --- Project Specific ---
+_archive/
+# web/data/  <-- I DELETED THIS SO YOUR JSON FILES GET SAVED!
