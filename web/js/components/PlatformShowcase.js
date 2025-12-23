@@ -34,7 +34,7 @@ export class PlatformShowcase extends HTMLElement {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
             
-            <div class="col-span-1 md:col-span-2 p-1 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30">
+            <div class="col-span-1 md:col-span-2 p-1 rounded-3xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 cursor-pointer hover:scale-[1.01] transition-transform launch-trigger" data-target="assistant-card">
                 <div class="h-full bg-slate-950/80 backdrop-blur-xl rounded-[1.4rem] p-8 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-20"><svg class="w-32 h-32 text-indigo-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8z"/><path d="M12 6a1 1 0 00-1 1v4.59l-3.29-3.3a1 1 0 00-1.42 1.42l5 5a1 1 0 001.42 0l5-5a1 1 0 00-1.42-1.42L13 11.59V7a1 1 0 00-1-1z"/></svg></div>
                     <div class="flex items-center gap-3 mb-4">
@@ -53,7 +53,7 @@ export class PlatformShowcase extends HTMLElement {
                 </div>
             </div>
 
-            <div class="showcase-card group">
+            <div class="showcase-card group launch-trigger" data-target="heliocloud-card">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-2xl">☁️</span>
                     <h3 class="text-xl font-bold text-white group-hover:text-sky-300 transition-colors">HelioCloud</h3>
@@ -70,7 +70,7 @@ export class PlatformShowcase extends HTMLElement {
                 </div>
             </div>
 
-            <div class="showcase-card group">
+            <div class="showcase-card group launch-trigger" data-target="gridsense-card">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-2xl">⚡</span>
                     <h3 class="text-xl font-bold text-white group-hover:text-amber-300 transition-colors">GridSense</h3>
@@ -87,7 +87,7 @@ export class PlatformShowcase extends HTMLElement {
                 </div>
             </div>
 
-            <div class="showcase-card group">
+            <div class="showcase-card group launch-trigger" data-target="lineaops-card">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-2xl">🏭</span>
                     <h3 class="text-xl font-bold text-white group-hover:text-emerald-300 transition-colors">LineaOps</h3>
@@ -104,7 +104,7 @@ export class PlatformShowcase extends HTMLElement {
                 </div>
             </div>
 
-            <div class="showcase-card group">
+            <div class="showcase-card group launch-trigger" data-target="vaultshield-card">
                 <div class="flex items-center gap-3 mb-3">
                     <span class="text-2xl">🛡️</span>
                     <h3 class="text-xl font-bold text-white group-hover:text-red-300 transition-colors">VaultShield</h3>
@@ -133,6 +133,7 @@ export class PlatformShowcase extends HTMLElement {
             transition: all 0.3s ease;
             display: flex;
             flex-direction: column;
+            cursor: pointer;
         }
         .showcase-card:hover {
             background: rgba(30, 41, 59, 0.8);
@@ -152,9 +153,20 @@ export class PlatformShowcase extends HTMLElement {
       </style>
     `;
 
-    // Handle Click
+    // 1. Main Button Listener
     this.querySelector('#launch-btn').addEventListener('click', () => {
-        this.dispatchEvent(new CustomEvent('launch', { bubbles: true }));
+        this.dispatchEvent(new CustomEvent('launch', { bubbles: true, detail: { target: null } }));
+    });
+
+    // 2. Card Click Listeners
+    this.querySelectorAll('.launch-trigger').forEach(card => {
+        card.addEventListener('click', (e) => {
+            const target = card.getAttribute('data-target');
+            this.dispatchEvent(new CustomEvent('launch', { 
+                bubbles: true, 
+                detail: { target: target } 
+            }));
+        });
     });
   }
 }

@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Qognus Demo Platform</title>
 
-  <meta
-    name="description"
-    content="Qognus Demo Platform — applied AI systems for energy, industry, cybersecurity, and critical operations."
-  />
+  <meta name="description" content="Qognus Demo Platform — applied AI systems for energy, industry, cybersecurity, and critical operations." />
+  <meta property="og:title" content="Qognus Demo Platform" />
+  <meta property="og:description" content="A local-first Vertical AI demonstration suite. Experience autonomous agents, physics-informed digital twins, and real-time anomaly detection." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/qognus/qognus-demo/main/docs/preview_card.png" /> <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -37,6 +38,8 @@
     body { background-color: #020617; scroll-behavior: smooth; }
     .fade-in { animation: fadeIn 0.5s ease-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* Custom Scrollbar for Webkit */
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
@@ -44,7 +47,7 @@
   </style>
 
   <script type="module">
-    import './js/components/PlatformShowcase.js'; // <--- NEW (Landing Page)
+    import './js/components/PlatformShowcase.js';
     import './js/components/AssistantCard.js';
     import './js/components/HelioCloudCard.js';
     import './js/components/GridSenseCard.js';
@@ -59,7 +62,7 @@
   <header class="border-b border-slate-800 sticky top-0 z-50 bg-bgDark/90 backdrop-blur-md">
     <div class="mx-auto px-6 py-4 flex items-center justify-between max-w-7xl">
       <div class="flex items-center gap-3">
-        <div class="h-6 w-6 rounded bg-gradient-to-br from-sky-400 to-indigo-500"></div>
+        <div class="h-6 w-6 rounded bg-gradient-to-br from-sky-400 to-indigo-500 shadow-[0_0_15px_rgba(56,189,248,0.5)]"></div>
         <div class="text-xl font-bold tracking-tight text-white">QOGNUS</div>
       </div>
       <nav class="flex gap-8 text-slate-400 text-sm font-medium">
@@ -77,11 +80,11 @@
 
     <div id="live-system" class="hidden fade-in">
         
-        <assistant-card></assistant-card>
+        <assistant-card id="assistant-card"></assistant-card>
 
         <div class="flex items-center gap-4 mt-16 mb-10 border-b border-slate-800 pb-4">
             <h2 class="text-2xl font-semibold text-white">Active Product Systems</h2>
-            <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20">Live Telemetry</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">Live Telemetry</span>
         </div>
         
         <div id="card-injection-point" class="space-y-16"></div>
@@ -104,7 +107,7 @@
       </div>
       <div class="text-sm text-slate-400">
         <h4 class="font-semibold text-slate-200 mb-4">Contact</h4>
-        <p class="mb-2 hover:text-white transition-colors cursor-pointer">solutions@qognus.com</p>
+        <p class="mb-2 hover:text-white transition-colors cursor-pointer">info@qognus.com</p>
         <p class="mb-2 hover:text-white transition-colors cursor-pointer">github.com/qognus</p>
         <p class="mt-6 text-xs text-slate-600">
             &copy; 2025 Qognus Demo Platform. MIT License.
@@ -114,28 +117,53 @@
   </footer>
 
   <script>
-    document.addEventListener('launch', () => {
+    document.addEventListener('launch', (e) => {
         const landing = document.getElementById('landing-zone');
         const system = document.getElementById('live-system');
         const container = document.getElementById('card-injection-point');
+        
+        // 1. Get requested target (if any)
+        const targetId = e.detail?.target;
 
-        // 1. Hide Landing
+        // 2. Hide Landing
         landing.style.display = 'none';
         
-        // 2. Show System Wrapper
+        // 3. Show System Wrapper
         system.classList.remove('hidden');
 
-        // 3. Inject Heavy Components (Triggers their connectedCallback)
-        // This ensures Three.js/Chart.js logic only runs NOW.
+        // 4. Inject Heavy Components (Only runs now)
         container.innerHTML = `
-            <heliocloud-card data-url="./data/model_health.json"></heliocloud-card>
-            <gridsense-card data-url="./data/gridsense_timeseries.json"></gridsense-card>
-            <vaultshield-card data-url="./data/vaultshield_artifacts.json"></vaultshield-card>
-            <lineaops-card data-url="./data/lineaops_data.json"></lineaops-card>
+            <heliocloud-card id="heliocloud-card" data-url="./data/model_health.json"></heliocloud-card>
+            <gridsense-card id="gridsense-card" data-url="./data/gridsense_timeseries.json"></gridsense-card>
+            <vaultshield-card id="vaultshield-card" data-url="./data/vaultshield_artifacts.json"></vaultshield-card>
+            <lineaops-card id="lineaops-card" data-url="./data/lineaops_data.json"></lineaops-card>
         `;
 
-        // 4. Scroll to top to see Assistant
-        window.scrollTo(0, 0);
+        // 5. Smart Scroll Logic (with Offset)
+        setTimeout(() => {
+            if (targetId) {
+                if (targetId === 'assistant-card') {
+                    // Special case: Scroll to absolute top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    const element = document.getElementById(targetId);
+                    if (element) {
+                        // Offset for Sticky Header (approx 100px)
+                        const headerOffset = 100;
+                        const elementPosition = element.getBoundingClientRect().top;
+                        const offsetPosition = elementPosition + window.scrollY - headerOffset;
+
+                        window.scrollTo({
+                            top: offsetPosition,
+                            behavior: "smooth"
+                        });
+                    }
+                }
+            } else {
+                // Default fallback
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }, 100); // Small delay to allow DOM render
     });
   </script>
 
