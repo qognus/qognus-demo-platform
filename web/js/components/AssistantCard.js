@@ -47,7 +47,8 @@ export class AssistantCard extends BaseCard {
     this.isBusy = false;
     this.config = {
         model: "qwen3", 
-        host: "http://localhost:11434"
+        // host: "http://localhost:11434"
+        host: "https://api.qognus.com"
     };
   }
 
