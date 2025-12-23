@@ -7454,7 +7454,7 @@ FILE PATH: web\js\agent_router.js
 // -----------------------------------------
 // Purpose:
 // - Provide a single, stable interface for the UI:
-//     agent.respond(userText, onToken)
+//      agent.respond(userText, onToken)
 // - Route to different backends (Local Ollama now; Browser llama.cpp later)
 // - Optionally inject local KB context (facts/runbooks) into the prompt
 // - Track conversation history (messages[]) in an OpenAI/Ollama-style format
@@ -7491,19 +7491,20 @@ const DEFAULTS = {
     "You help SREs and infra leads triage incidents across ApexGrid products (GridSense, VaultShield, LineaOps, HelioCloud).",
     "Be concise, actionable, and technically grounded. Prefer checklists and concrete next steps.",
     "If you use local product knowledge snippets, cite them as [KB:ProductName • SnippetTitle].",
-    "If information is missing, ask 1-2 clarifying questions."
+    "If information is missing, ask 1-2 clarifying questions.",
+    // Force explicit tags to make parsing reliable
+    "IMPORTANT: If you need to think before answering, you MUST start your response with <think> and end the thought with </think>.",
+    "Do not output internal reasoning without these tags."
   ].join(" ")
 };
 
 // --------------------
-// TEMP DEBUG SETTINGS
+// DEBUG SETTINGS
 // --------------------
 const DEBUG_AGENT = true;
 
-// Logs every parsed NDJSON frame keys + “where is the text?”
-const DEBUG_LOG_FRAMES = true;
-
-// Logs token chunks if they appear
+// Clean logs: set these to false to stop the spam
+const DEBUG_LOG_FRAMES = false;
 const DEBUG_LOG_TOKENS = false;
 
 // Limit how much content we print when logging candidates
@@ -7606,7 +7607,7 @@ function looksLikeLowEntropyJunk(s) {
   const t = normalizeWhitespace(s);
   if (!t) return true;
 
-  // Reject pure role spam like: "assistant assistant assistant ..."
+  // Reject pure role spam
   const lower = t.toLowerCase();
   if (/^(assistant\s*){3,}$/i.test(lower)) return true;
 
@@ -7621,9 +7622,7 @@ function looksLikeLowEntropyJunk(s) {
     if (ratio >= 0.65) return true;
   }
 
-  // Too short to be useful, but not strictly empty.
-  if (t.length <= 2) return true;
-
+  // FIX: Removed length check to allow small tokens like "I", "a", ","
   return false;
 }
 
@@ -7738,21 +7737,24 @@ function findBestTextCandidate(frame) {
 
   for (const cand of scored.slice(0, 18)) {
     const val = getByPath(frame, cand.path);
-    if (typeof val !== "string" || !val.length) continue;
+    if (typeof val !== "string") continue; 
 
     if (isProbablyMetaString(cand.path, val)) continue;
 
     const trimmed = normalizeWhitespace(val);
-    if (!trimmed) continue;
+    
+    // special case: allow single spaces to pass through (cumulative logic sometimes needs this)
+    if (!trimmed && val.length === 0) continue;
 
-    // Require at least a little "sentence-like" structure (helps avoid single-word fields)
     const hasSpace = trimmed.includes(" ");
     const hasPunct = /[.!?:;\n]/.test(trimmed);
     const structureBonus = (hasSpace ? 4 : 0) + (hasPunct ? 4 : 0);
 
     const total = cand.score + structureBonus + Math.min(60, trimmed.length / 18);
-    if (total > best.score || (total === best.score && trimmed.length > best.len)) {
-      best = { text: trimmed, path: cand.path, score: total, len: trimmed.length };
+    
+    // Save raw 'val' to preserve spaces/newlines
+    if (total > best.score || (total === best.score && val.length > best.len)) {
+      best = { text: val, path: cand.path, score: total, len: val.length };
     }
   }
 
@@ -7761,9 +7763,6 @@ function findBestTextCandidate(frame) {
 
 /**
  * Stream-safe: convert a per-frame candidate into an incremental delta.
- * Handles both:
- * - delta frames (small chunks)
- * - cumulative frames (growing full text)
  */
 function computeDeltaFromCandidate(candidateText, prevText) {
   const cur = String(candidateText || "");
@@ -7771,21 +7770,17 @@ function computeDeltaFromCandidate(candidateText, prevText) {
 
   if (!cur) return { delta: "", nextPrev: prev };
 
-  // cumulative mode
   if (prev && cur.startsWith(prev)) {
     return { delta: cur.slice(prev.length), nextPrev: cur };
   }
 
-  // delta-ish mode
   if (cur.length <= 64) {
     return { delta: cur, nextPrev: prev + cur };
   }
 
-  // replacement mode
   return { delta: cur, nextPrev: cur };
 }
 
-// Try to extract assistant text from multiple possible Ollama frame shapes.
 function extractTextFromFrame(frame) {
   if (!frame || typeof frame !== "object") return "";
 
@@ -7793,19 +7788,12 @@ function extractTextFromFrame(frame) {
   const mc = msg?.content;
 
   if (typeof mc === "string" && mc.length) return mc;
-
   if (typeof frame.response === "string" && frame.response.length) return frame.response;
 
-  if (typeof msg?.thinking === "string" && msg.thinking.length) return msg.thinking;
-  if (typeof msg?.reasoning === "string" && msg.reasoning.length) return msg.reasoning;
-  if (typeof msg?.reasoning_content === "string" && msg.reasoning_content.length)
-    return msg.reasoning_content;
-
-  if (typeof frame.thinking === "string" && frame.thinking.length) return frame.thinking;
-  if (typeof frame.reasoning === "string" && frame.reasoning.length) return frame.reasoning;
-  if (typeof frame.reasoning_content === "string" && frame.reasoning_content.length)
-    return frame.reasoning_content;
-
+  // Filter explicit reasoning fields if present
+  if (typeof msg?.thinking === "string") return ""; 
+  if (typeof msg?.reasoning === "string") return "";
+  
   if (mc && typeof mc === "object") {
     if (typeof mc.text === "string" && mc.text.length) return mc.text;
     if (Array.isArray(mc) && mc.length) {
@@ -7824,9 +7812,6 @@ function extractTextFromFrame(frame) {
   return "";
 }
 
-/**
- * Prefer "final text" style fields if present, else fall back to normal extraction.
- */
 function extractFinalTextFromFrame(frame) {
   const normal = extractTextFromFrame(frame);
   if (normal && !looksLikeLowEntropyJunk(normal)) return normal;
@@ -7837,9 +7822,6 @@ function extractFinalTextFromFrame(frame) {
   return "";
 }
 
-/**
- * Naive KB loader + search.
- */
 class LocalKb {
   constructor({ baseUrl = "./assets" } = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
@@ -8002,8 +7984,6 @@ export class ApexGridAgent {
     this.kb = new LocalKb({ baseUrl: "./assets" });
 
     this._reqId = 0;
-
-    // heuristic streaming state (per request; reset in _respondOllama)
     this._heurPrevText = "";
 
     this.ui = {
@@ -8074,169 +8054,115 @@ export class ApexGridAgent {
     this._setStatus("Generating (local Ollama)…", "busy");
 
     const assistantChunks = [];
-    const model = this.opts.ollamaModel;
-
     let tokenCount = 0;
-    let lastFrameText = "";
-    let doneFrameText = "";
-    let sawAnyTokenDeltas = false;
-
-    this._heurPrevText = "";
-
-    if (DEBUG_AGENT) {
-      console.log(`[Agent] (#${reqId}) calling ollamaChatStream`, {
+    let buffer = ""; // Holds text that *might* be a tag
+    let inThinkingBlock = false;
+    
+    // Increased token limit to allow thinking
+    const fullFromClient = await ollamaChatStream({
         host: this.opts.ollamaHost,
-        model,
-        messagesCount: this.messages.length
-      });
+        model: this.opts.ollamaModel,
+        messages: this.messages,
+        options: { num_predict: 1024 },
+        
+        onToken: (t) => {
+            if (typeof t !== "string") return;
+            
+            buffer += t;
+            
+            // Process buffer loop
+            while (true) {
+                if (!inThinkingBlock) {
+                    // Look for <think>
+                    const startIdx = buffer.indexOf("<think>");
+                    if (startIdx !== -1) {
+                        // Emit everything before tag
+                        const pre = buffer.slice(0, startIdx);
+                        if (pre) emitSafe(pre);
+                        
+                        // Switch state, remove tag from buffer
+                        inThinkingBlock = true;
+                        buffer = buffer.slice(startIdx + 7);
+                        continue; // Re-scan remainder
+                    } else {
+                        // No full tag. Do we have a partial tag at the end?
+                        const partialMatch = buffer.match(/<(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/);
+                        
+                        if (partialMatch) {
+                            // Emit safe part, keep partial tag in buffer
+                            const safeLen = partialMatch.index;
+                            if (safeLen > 0) {
+                                const safe = buffer.slice(0, safeLen);
+                                emitSafe(safe);
+                                buffer = buffer.slice(safeLen);
+                            }
+                            break; // Wait for more
+                        } else {
+                            // Emit all
+                            emitSafe(buffer);
+                            buffer = "";
+                            break;
+                        }
+                    }
+                } else {
+                    // Inside thinking block. Look for </think>
+                    const endIdx = buffer.indexOf("</think>");
+                    if (endIdx !== -1) {
+                        // Found closing tag. Discard pre-part (it was thought).
+                        inThinkingBlock = false;
+                        buffer = buffer.slice(endIdx + 8);
+                        continue; // Re-scan remainder
+                    } else {
+                        // Keep buffer minimal by discarding obviously safe thought text
+                        const partialMatch = buffer.match(/<\/(?:t(?:h(?:i(?:n(?:k)?)?)?)?)?$/);
+                        
+                        if (partialMatch) {
+                            // Keep just the partial tag part
+                            const keepIdx = partialMatch.index;
+                            buffer = buffer.slice(keepIdx);
+                            break;
+                        } else {
+                            // Check if we have '<' anywhere else that could be a start
+                            const lastOpen = buffer.lastIndexOf("<");
+                            if (lastOpen !== -1) {
+                                buffer = buffer.slice(lastOpen);
+                            } else {
+                                buffer = ""; // Dump all thought text
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Flush remaining buffer if we are not thinking
+    if (!inThinkingBlock && buffer) {
+        emitSafe(buffer);
     }
 
-    const fullFromClient = await ollamaChatStream({
-      host: this.opts.ollamaHost,
-      model,
-      messages: this.messages,
+    function emitSafe(str) {
+       if (!str) return;
+       // Valid junk check - allow pure whitespace to pass through
+       if (str.trim().length > 0 && looksLikeLowEntropyJunk(str)) return;
+       
+       assistantChunks.push(str);
+       try { onToken(str); } catch (e) { console.warn(e); }
+    }
 
-      onToken: (t, meta) => {
-        if (meta && typeof meta === "object") {
-          const extracted = extractFinalTextFromFrame(meta);
-          if (extracted) lastFrameText = extracted;
-
-          if (DEBUG_AGENT && meta.done) {
-            doneFrameText = extracted || doneFrameText;
-
-            console.log(`[Agent] (#${reqId}) [DONE frame]`, {
-              keys: safeKeys(meta),
-              messageKeys: safeKeys(meta.message),
-              extractedPreview: preview(extracted),
-              done_reason: meta.done_reason
-            });
-
-            const msgStrings = gatherStringFields(meta.message, { prefix: "message", maxDepth: 3 });
-            const topStrings = gatherStringFields(meta, { prefix: "frame", maxDepth: 3 });
-
-            console.log(`[Agent] (#${reqId}) [DONE] string fields (message)`, msgStrings);
-            console.log(`[Agent] (#${reqId}) [DONE] string fields (frame)`, topStrings);
-          }
-        }
-
-        if (typeof t === "string" && t.length) {
-          // protect against role spam
-          if (looksLikeLowEntropyJunk(t)) return;
-
-          sawAnyTokenDeltas = true;
-          assistantChunks.push(t);
-          tokenCount++;
-
-          if (DEBUG_AGENT && DEBUG_LOG_TOKENS) {
-            console.log(`[Agent] (#${reqId}) token[${tokenCount}]`, preview(t));
-          }
-
-          try {
-            onToken(t);
-          } catch (e) {
-            if (DEBUG_AGENT) console.warn(`[Agent] (#${reqId}) onToken callback threw`, e);
-          }
-        }
-      },
-
-      onMeta:
-        DEBUG_AGENT && DEBUG_LOG_FRAMES
-          ? (frame) => {
-              const extracted = extractFinalTextFromFrame(frame);
-              if (extracted) lastFrameText = extracted;
-
-              console.log(`[Agent] (#${reqId}) frame`, {
-                keys: safeKeys(frame),
-                hasMessage: !!frame.message,
-                messageKeys: safeKeys(frame.message),
-                hasResponse: typeof frame.response === "string",
-                extractedPreview: preview(extracted),
-                done: !!frame.done
-              });
-
-              const msgStrings = gatherStringFields(frame.message, { prefix: "message", maxDepth: 3 });
-              const topStrings = gatherStringFields(frame, { prefix: "frame", maxDepth: 3 });
-
-              if (msgStrings.length || topStrings.length) {
-                console.log(`[Agent] (#${reqId}) frame string fields (message)`, msgStrings);
-                console.log(`[Agent] (#${reqId}) frame string fields (frame)`, topStrings);
-              }
-
-              // ---- Heuristic text discovery + safe streaming fallback ----
-              // Only do this if the client isn't giving us real token deltas.
-              if (!sawAnyTokenDeltas) {
-                const { text: candText, path: candPath } = findBestTextCandidate(frame);
-
-                if (candText && !looksLikeLowEntropyJunk(candText)) {
-                  if (DEBUG_AGENT) {
-                    console.log(`[Agent] (#${reqId}) heuristic candidate`, {
-                      path: candPath,
-                      len: candText.length,
-                      preview: preview(candText)
-                    });
-                  }
-
-                  const { delta, nextPrev } = computeDeltaFromCandidate(candText, this._heurPrevText);
-                  this._heurPrevText = nextPrev;
-
-                  if (delta && !looksLikeLowEntropyJunk(delta)) {
-                    assistantChunks.push(delta);
-                    tokenCount++;
-
-                    try {
-                      onToken(delta);
-                    } catch (e) {
-                      if (DEBUG_AGENT) console.warn(`[Agent] (#${reqId}) onToken callback threw`, e);
-                    }
-                  }
-
-                  if (frame?.done) {
-                    doneFrameText = candText;
-                    lastFrameText = candText;
-                  }
-                } else if (frame?.done) {
-                  const doneExtracted = extractFinalTextFromFrame(frame);
-                  if (doneExtracted) doneFrameText = doneExtracted;
-                }
-              }
-
-              if (frame?.done) {
-                const doneExtracted = extractFinalTextFromFrame(frame);
-                if (doneExtracted) doneFrameText = doneExtracted;
-              }
-            }
-          : null
-    });
-
-    const joined = assistantChunks.join("");
-
-    const final =
-      joined ||
-      (typeof fullFromClient === "string" ? fullFromClient : "") ||
-      doneFrameText ||
-      lastFrameText ||
-      "";
-
+    const final = assistantChunks.join("");
+    
     if (DEBUG_AGENT) {
-      console.log(`[Agent] (#${reqId}) complete`, {
-        tokenCount,
-        joinedLen: joined.length,
-        returnedLen: typeof fullFromClient === "string" ? fullFromClient.length : 0,
-        doneFrameLen: doneFrameText.length,
-        lastFrameLen: lastFrameText.length,
-        finalLen: final.length,
-        sawAnyTokenDeltas
-      });
-
-      if (final.length === 0) {
-        console.warn(
-          `[Agent] (#${reqId}) No text extracted. Look at "frame string fields" logs — the answer is living in some other field (or only metadata is streaming).`
-        );
-      }
+      console.group(`[Agent] (#${reqId}) Request Complete`);
+      console.log("%cRAW OUTPUT (from Model):", "color: #f59e0b; font-weight: bold;");
+      console.log(fullFromClient);
+      console.log("%cUI OUTPUT (Filtered):", "color: #10b981; font-weight: bold;");
+      console.log(final);
+      console.groupEnd();
     }
 
     this.messages.push({ role: "assistant", content: final });
-
     this._setStatus("Ready (local)", "ok");
     return final;
   }
@@ -8463,7 +8389,6 @@ export async function initAssistantCard({
   await agent.init();
   return agent;
 }
-
 
 ==================================================
 FILE PATH: web\js\charts.js

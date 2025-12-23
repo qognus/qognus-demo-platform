@@ -14,8 +14,9 @@ NOTE: The first run may take 1-3 minutes to compile Numba functions.
 """
 
 import json
-import pathlib
 import time
+import sys
+import pathlib
 from collections import Counter
 
 import numpy as np
@@ -30,31 +31,53 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 # ------------------------------------------------------------
-# CONFIG
+# SETUP: Import from Central Config
 # ------------------------------------------------------------
 
-DATA_DIR = pathlib.Path("data")
-PROCESSED_DIR = DATA_DIR / "processed"
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
+try:
+    from config import PROCESSED_DIR, RANDOM_SEED
+except ImportError:
+    print("❌ Error: Could not import 'config.py'.")
+    print(f"   Make sure 'config.py' exists in the project root: {PROJECT_ROOT}")
+    sys.exit(1)
+
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+# Inputs
 TICKETS_PARQUET = PROCESSED_DIR / "tickets.parquet"
 EMBED_NPY = PROCESSED_DIR / "embeddings.npy"
 
+# Outputs
 OUT_MANIFOLD = PROCESSED_DIR / "manifold_3d.npy"
 OUT_LABELS = PROCESSED_DIR / "cluster_labels.npy"
 OUT_CLUSTER_SUMMARY = PROCESSED_DIR / "cluster_summary.json"
 
 # UMAP parameters
-UMAP_N_COMPONENTS = 3
-UMAP_N_NEIGHBORS = 30
-UMAP_MIN_DIST = 0.1
-UMAP_METRIC = "cosine"
-UMAP_RANDOM_STATE = 42
+# n_neighbors: Larger = more global structure, Smaller = local clusters
+# min_dist: How tightly points are packed together
+UMAP_PARAMS = {
+    "n_components": 3,
+    "n_neighbors": 30,
+    "min_dist": 0.1,
+    "metric": "cosine",
+    "random_state": RANDOM_SEED,
+    "verbose": True
+}
 
 # HDBSCAN parameters
-HDBSCAN_MIN_CLUSTER_SIZE = 30
-HDBSCAN_MIN_SAMPLES = 10
-HDBSCAN_METRIC = "euclidean"
-HDBSCAN_SELECTION_EPS = 0.05
+HDBSCAN_PARAMS = {
+    "min_cluster_size": 30,
+    "min_samples": 10,
+    "metric": "euclidean",
+    "cluster_selection_epsilon": 0.05,
+}
 
 
 # ------------------------------------------------------------
@@ -64,9 +87,9 @@ HDBSCAN_SELECTION_EPS = 0.05
 def load_data():
     """Load tickets DataFrame and embeddings matrix."""
     if not TICKETS_PARQUET.exists():
-        raise FileNotFoundError(f"Missing {TICKETS_PARQUET}")
+        raise FileNotFoundError(f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first.")
     if not EMBED_NPY.exists():
-        raise FileNotFoundError(f"Missing {EMBED_NPY}")
+        raise FileNotFoundError(f"Missing {EMBED_NPY}. Run compute_embeddings.py first.")
 
     print(f"Loading data...")
     df = pd.read_parquet(TICKETS_PARQUET)
@@ -83,16 +106,9 @@ def load_data():
 def compute_umap_3d(embeddings: np.ndarray) -> np.ndarray:
     """Compute a 3D UMAP projection."""
     print("\n--- UMAP PROJECTION ---")
-    print("Initializing UMAP reducer...")
+    print(f"Params: {json.dumps(UMAP_PARAMS, indent=2)}")
     
-    reducer = umap.UMAP(
-        n_components=UMAP_N_COMPONENTS,
-        n_neighbors=UMAP_N_NEIGHBORS,
-        min_dist=UMAP_MIN_DIST,
-        metric=UMAP_METRIC,
-        random_state=UMAP_RANDOM_STATE,
-        verbose=True # Shows internal UMAP progress
-    )
+    reducer = umap.UMAP(**UMAP_PARAMS)
     
     print("Fitting UMAP (First run may take 1-3 mins to compile Numba)...")
     start_time = time.time()
@@ -113,14 +129,9 @@ def compute_umap_3d(embeddings: np.ndarray) -> np.ndarray:
 def run_hdbscan(coords_3d: np.ndarray) -> np.ndarray:
     """Run HDBSCAN clustering on 3D coordinates."""
     print("\n--- HDBSCAN CLUSTERING ---")
-    print("Clustering 3D points...")
+    print(f"Params: {json.dumps(HDBSCAN_PARAMS, indent=2)}")
     
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=HDBSCAN_MIN_CLUSTER_SIZE,
-        min_samples=HDBSCAN_MIN_SAMPLES,
-        metric=HDBSCAN_METRIC,
-        cluster_selection_epsilon=HDBSCAN_SELECTION_EPS,
-    )
+    clusterer = hdbscan.HDBSCAN(**HDBSCAN_PARAMS)
     labels = clusterer.fit_predict(coords_3d)
 
     num_clusters = len(set(labels)) - (1 if -1 in labels else 0)
@@ -201,6 +212,7 @@ def main():
     print("==============================================")
     print(" Qognus Demo Platform — UMAP + HDBSCAN")
     print("==============================================")
+    print(f"Config Source: {PROJECT_ROOT}/config.py")
 
     try:
         df, embeddings = load_data()
@@ -231,6 +243,9 @@ def main():
         print("\n[!] Script interrupted by user.")
     except Exception as e:
         print(f"\n[!] Error: {e}")
+        # print full traceback for debugging if needed
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

@@ -20,26 +20,36 @@ Computes:
 
 Writes:
 - data/processed/model_health.json
-
-This script matches the design described in:
-- docs/ml_pipeline_design.md
-- docs/architecture.md
 """
 
 import json
+import sys
 import pathlib
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import silhouette_score
 
 # ------------------------------------------------------------
-# PATHS
+# SETUP: Import from Central Config
 # ------------------------------------------------------------
 
-DATA_DIR = pathlib.Path("data")
-PROCESSED_DIR = DATA_DIR / "processed"
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+try:
+    from config import PROCESSED_DIR
+except ImportError:
+    print("❌ Error: Could not import 'config.py'.")
+    print(f"   Make sure 'config.py' exists in the project root: {PROJECT_ROOT}")
+    sys.exit(1)
+
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
 
 TICKETS_PARQUET = PROCESSED_DIR / "tickets.parquet"
 EMBED_NPY = PROCESSED_DIR / "embeddings.npy"
@@ -55,22 +65,16 @@ OUT_MODEL_HEALTH = PROCESSED_DIR / "model_health.json"
 
 def load_artifacts():
     """Load tickets, embeddings, 3D manifold, and cluster labels."""
-    if not TICKETS_PARQUET.exists():
-        raise FileNotFoundError(
-            f"Missing {TICKETS_PARQUET}. Run compute_embeddings.py first."
-        )
-    if not EMBED_NPY.exists():
-        raise FileNotFoundError(
-            f"Missing {EMBED_NPY}. Run compute_embeddings.py first."
-        )
-    if not MANIFOLD_3D_NPY.exists():
-        raise FileNotFoundError(
-            f"Missing {MANIFOLD_3D_NPY}. Run cluster_umap_hdbscan.py first."
-        )
-    if not CLUSTER_LABELS_NPY.exists():
-        raise FileNotFoundError(
-            f"Missing {CLUSTER_LABELS_NPY}. Run cluster_umap_hdbscan.py first."
-        )
+    required_files = [
+        (TICKETS_PARQUET, "Run compute_embeddings.py first."),
+        (EMBED_NPY, "Run compute_embeddings.py first."),
+        (MANIFOLD_3D_NPY, "Run cluster_umap_hdbscan.py first."),
+        (CLUSTER_LABELS_NPY, "Run cluster_umap_hdbscan.py first.")
+    ]
+
+    for path, msg in required_files:
+        if not path.exists():
+            raise FileNotFoundError(f"Missing {path}. {msg}")
 
     print(f"Loading tickets from: {TICKETS_PARQUET}")
     df = pd.read_parquet(TICKETS_PARQUET)
@@ -84,18 +88,13 @@ def load_artifacts():
     print(f"Loading cluster labels from: {CLUSTER_LABELS_NPY}")
     labels = np.load(CLUSTER_LABELS_NPY)
 
+    # Validation
     if len(df) != embeddings.shape[0]:
-        raise ValueError(
-            f"Row count mismatch: tickets={len(df)} vs embeddings={embeddings.shape[0]}"
-        )
+        raise ValueError(f"Mismatch: {len(df)} tickets vs {embeddings.shape[0]} embeddings")
     if len(df) != coords_3d.shape[0]:
-        raise ValueError(
-            f"Row count mismatch: tickets={len(df)} vs coords={coords_3d.shape[0]}"
-        )
+        raise ValueError(f"Mismatch: {len(df)} tickets vs {coords_3d.shape[0]} coords")
     if len(df) != labels.shape[0]:
-        raise ValueError(
-            f"Row count mismatch: tickets={len(df)} vs labels={labels.shape[0]}"
-        )
+        raise ValueError(f"Mismatch: {len(df)} tickets vs {labels.shape[0]} labels")
 
     return df, embeddings, coords_3d, labels
 
@@ -196,46 +195,51 @@ def main():
     print("==============================================")
     print(" Qognus Demo Platform — Embedding Health")
     print("==============================================")
+    print(f"Config Source: {PROJECT_ROOT}/config.py")
 
-    df, embeddings, coords_3d, labels = load_artifacts()
-    n_tickets = len(df)
+    try:
+        df, embeddings, coords_3d, labels = load_artifacts()
+        n_tickets = len(df)
 
-    print("Computing silhouette score...")
-    avg_silhouette = compute_silhouette(coords_3d, labels)
-    if avg_silhouette is not None:
-        print(f"Average silhouette: {avg_silhouette:.3f}")
-    else:
-        print("Average silhouette: None")
+        print("Computing silhouette score...")
+        avg_silhouette = compute_silhouette(coords_3d, labels)
+        if avg_silhouette is not None:
+            print(f"Average silhouette: {avg_silhouette:.3f}")
+        else:
+            print("Average silhouette: None")
 
-    print("Computing cluster stats...")
-    cluster_sizes, product_purity, category_purity = compute_cluster_stats(df, labels)
+        print("Computing cluster stats...")
+        cluster_sizes, product_purity, category_purity = compute_cluster_stats(df, labels)
 
-    print("Computing label distribution...")
-    label_stats = compute_label_counts(labels)
+        print("Computing label distribution...")
+        label_stats = compute_label_counts(labels)
 
-    print("Computing severity distribution...")
-    severity_distribution = compute_severity_distribution(df)
+        print("Computing severity distribution...")
+        severity_distribution = compute_severity_distribution(df)
 
-    # Assemble health dict
-    health = {
-        "numTickets": int(n_tickets),
-        "avgSilhouette": avg_silhouette,
-        "noiseFraction": label_stats["noiseFraction"],
-        "numClusters": label_stats["numClusters"],
-        "largestClusterSize": label_stats["largestClusterSize"],
-        "clusterSizes": cluster_sizes,
-        "severityDistribution": severity_distribution,
-        "productPurityByCluster": product_purity,
-        "categoryPurityByCluster": category_purity,
-    }
+        # Assemble health dict
+        health = {
+            "numTickets": int(n_tickets),
+            "avgSilhouette": avg_silhouette,
+            "noiseFraction": label_stats["noiseFraction"],
+            "numClusters": label_stats["numClusters"],
+            "largestClusterSize": label_stats["largestClusterSize"],
+            "clusterSizes": cluster_sizes,
+            "severityDistribution": severity_distribution,
+            "productPurityByCluster": product_purity,
+            "categoryPurityByCluster": category_purity,
+        }
 
-    OUT_MODEL_HEALTH.parent.mkdir(parents=True, exist_ok=True)
-    with OUT_MODEL_HEALTH.open("w", encoding="utf-8") as f:
-        json.dump(health, f, indent=2)
+        OUT_MODEL_HEALTH.parent.mkdir(parents=True, exist_ok=True)
+        with OUT_MODEL_HEALTH.open("w", encoding="utf-8") as f:
+            json.dump(health, f, indent=2)
 
-    print(f"\nSaved model health → {OUT_MODEL_HEALTH}")
-    print("Done.\n")
+        print(f"\nSaved model health → {OUT_MODEL_HEALTH}")
+        print("Done.\n")
 
+    except Exception as e:
+        print(f"\n[!] Error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
