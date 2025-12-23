@@ -120,7 +120,9 @@ export class AssistantCard extends BaseCard {
     this.sendBtn = this.querySelector('#send-btn');
     this.kbStatus = this.querySelector('#kb-status');
 
-    this.form.addEventListener('submit', (e) => { e.preventDefault(); this.handleSend(); });
+    if (this.form) {
+        this.form.addEventListener('submit', (e) => { e.preventDefault(); this.handleSend(); });
+    }
     await this.loadKnowledgeBase();
   }
 
@@ -160,25 +162,17 @@ export class AssistantCard extends BaseCard {
     return [...new Set(hits.map(h => h.text))].slice(0, 3).join("\n");
   }
 
-  // --- SAFE & ROBUST RENDERER ---
   renderOutput(rawText) {
-    // 1. Remove closed <think> blocks entirely
     let clean = rawText.replace(/<think>[\s\S]*?<\/think>/gi, "");
     
-    // 2. Check if we are currently inside an unclosed <think> block
-    //    Strategy: If last <think> is after last </think>, we are thinking.
     const lastOpen = rawText.lastIndexOf("<think>");
     const lastClose = rawText.lastIndexOf("</think>");
-    
     if (lastOpen > lastClose) {
-        // We are currently thinking. Show spinner.
         return '<span class="animate-pulse text-indigo-400 font-mono text-xs">Thinking...</span>';
     }
 
-    // 3. Highlight Tool Calls
     clean = clean.replace(/\[\[call:(.*?)\]\]/g, '<span class="text-indigo-400 font-mono text-xs bg-indigo-500/10 px-1 rounded">🛠️ Calling Tool: $1...</span>');
 
-    // 4. Basic Markdown
     clean = clean
         .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
         .replace(/`(.*?)`/g, '<code class="bg-black/30 rounded px-1 py-0.5 text-indigo-300 font-mono text-xs">$1</code>')
@@ -195,9 +189,13 @@ export class AssistantCard extends BaseCard {
             model: this.config.model,
             messages: messages,
             stream: true,
-            options: { temperature: 0.1 } // Low temp for reliability
+            options: { temperature: 0.1 }
         })
     });
+
+    if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -227,13 +225,12 @@ export class AssistantCard extends BaseCard {
     this.sendBtn.disabled = true;
     this.input.disabled = true;
 
-    // Create Assistant Bubble
+    // Start with one bubble
     const container = this.appendMessage('assistant', '<span class="animate-pulse text-indigo-400 font-mono text-xs">Thinking...</span>');
     const msgContent = container.querySelector('.msg-content');
 
     const context = this.retrieveContext(text);
     
-    // Optimized System Prompt for Tool Use
     const systemPrompt = `
 You are the ApexGrid Incident Commander.
 CONTEXT:
@@ -251,11 +248,10 @@ INSTRUCTIONS:
 3. Once you receive the tool output, answer concisely.
 `;
 
-    // Ensure we start with system prompt
     if (this.messages.length === 0 || this.messages[0].role !== 'system') {
         this.messages = [{ role: "system", content: systemPrompt }];
     } else {
-        this.messages[0].content = systemPrompt; // Update context
+        this.messages[0].content = systemPrompt;
     }
 
     this.messages.push({ role: "user", content: text });
@@ -275,12 +271,10 @@ INSTRUCTIONS:
         try {
             await this.streamResponse(this.messages, (token) => {
                 fullText += token;
-                
-                // Real-time rendering using the Robust Renderer
+                // This will overwrite "Executing..." only when the FIRST token arrives
                 msgContent.innerHTML = this.renderOutput(fullText);
                 this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
-
-                // Check for tool call
+                
                 const match = fullText.match(/\[\[call:(.*?)\]\]/);
                 if (match) toolCallFound = match[1];
             });
@@ -290,13 +284,21 @@ INSTRUCTIONS:
             if (toolCallFound) {
                 const toolFn = TOOL_REGISTRY[toolCallFound];
                 if (toolFn) {
+                    // 1. Show "Executing..." (and KEEP it there)
                     msgContent.innerHTML += `<div class="mt-2 text-xs text-emerald-400">⚡ Executing ${toolCallFound}...</div>`;
+                    this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
+
+                    // 2. Wait for result (Text stays on screen)
                     const result = await toolFn();
-                    this.messages.push({ role: "system", content: `TOOL_OUTPUT:\n${result}` });
-                    continue; // Loop again to let model explain results
+                    this.messages.push({ role: "user", content: `Observation from ${toolCallFound}:\n${result}` });
+
+                    // 3. Loop immediately.
+                    // The "Executing..." text remains visible until the 'streamResponse' 
+                    // in the next loop receives its first chunk of data.
+                    continue; 
                 }
             }
-            break; // No tool call, finished
+            break;
 
         } catch (err) {
             msgContent.innerHTML += `<br><span class="text-red-400">Error: ${err.message}</span>`;
@@ -325,12 +327,18 @@ INSTRUCTIONS:
         ${avatar}
         <div class="space-y-1 max-w-[80%]">
             <div class="text-xs text-slate-500 font-bold ${isUser ? 'text-right' : ''}">${isUser ? 'Operator' : 'Copilot'}</div>
-            <div class="text-sm leading-relaxed ${bubbleColor} p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} msg-content">
-                ${text}
-            </div>
+            <div class="text-sm leading-relaxed ${bubbleColor} p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} msg-content"></div>
         </div>
     `;
     
+    const contentBox = div.querySelector('.msg-content');
+
+    if (isUser) {
+        contentBox.textContent = text;
+    } else {
+        contentBox.innerHTML = text;
+    }
+
     this.chatWindow.appendChild(div);
     this.chatWindow.scrollTop = this.chatWindow.scrollHeight;
     return div;
